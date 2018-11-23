@@ -38,6 +38,14 @@ def tiff_to_png(src, dest):
     process_log.append(('tiff_to_png', src, dest))
 
 
+def tiff_combine_rgb_to_png(src_r, src_g, src_b, dest):
+    src_r_file = Image.open(src_r)
+    src_g_file = Image.open(src_g)
+    src_b_file = Image.open(src_b)
+    Image.merge('RGB', (src_r_file, src_g_file, src_b_file)).save(dest)
+    process_log.append(('tiff_combine_rgb_to_png', '|'.join((src_r, src_g, src_b)), dest))
+
+
 def constant_to_tex(parameters_path, parameter_name, const_name, format):
     parameters = parameters_parse(parameters_path)
     constants.append((const_name, parameters[parameter_name], format))
@@ -105,6 +113,7 @@ copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.
         os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
 
 
+run_dir_vdf = 'Runs/run_vdf_20181123_23_43_59_319093'
 tiff_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
         os.path.join(gen_output_path, 'vdf_110_wz.png'))
@@ -114,6 +123,11 @@ tiff_to_png(
 tiff_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
         os.path.join(gen_output_path, 'vdf_110_zb_2.png'))
+tiff_combine_rgb_to_png(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tiff'),
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
+        os.path.join(gen_output_path, 'vdf_110.png'))
 
 
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
