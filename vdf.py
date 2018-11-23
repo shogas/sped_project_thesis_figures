@@ -18,6 +18,11 @@ def vdf_interactive(filename):
     roi = pxm.roi.CircleROI(middle_x, middle_y, r_inner=0, r=signal_width / 50)
     s.plot_interactive_virtual_image(roi=roi)
     plt.show()
+    print(
+"""Ended with circle:
+cx = {}
+cy = {}
+r = {}""".format(roi.cx, roi.cy, roi.r))
 
 
 if __name__ == "__main__":
