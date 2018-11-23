@@ -105,6 +105,17 @@ copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.
         os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
 
 
+tiff_to_png(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
+        os.path.join(gen_output_path, 'vdf_110_wz.png'))
+tiff_to_png(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tiff'),
+        os.path.join(gen_output_path, 'vdf_110_zb_1.png'))
+tiff_to_png(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
+        os.path.join(gen_output_path, 'vdf_110_zb_2.png'))
+
+
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
     for action, src, dest in process_log:
         f.write('{}\t{}\t{}\n'.format(action, src, dest))
