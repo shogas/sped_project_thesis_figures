@@ -1,0 +1,11 @@
+shortname = figures
+output_dir = ../../Data/Runs
+
+project_path    = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave
+data_path       = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Data
+gen_output_path = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Tekst/fig/gen
+constants_path  = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Tekst/constants.tex
+
+# Relative to data_path
+run_dir_three_phase_no_split = Runs/run_110_three_phase_no_split_20181121_16_38_54_565809
+run_dir_vdf = Runs/run_vdf_20181123_23_43_59_319093

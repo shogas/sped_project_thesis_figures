@@ -8,6 +8,21 @@ from PIL import Image
 
 from parameters import parameters_parse
 
+
+parameters = parameters_parse(sys.argv[1])
+
+project_path    = parameters['project_path']
+data_path       = parameters['data_path']
+gen_output_path = parameters['gen_output_path']
+constants_path  = parameters['constants_path']
+
+run_dir_three_phase_no_split = parameters['run_dir_three_phase_no_split']
+run_dir_vdf                  = parameters['run_dir_vdf']
+
+process_log = []
+constants = []
+
+
 def copy(src, dest):
     shutil.copyfile(src, dest)
     process_log.append(('copy', src, dest))
@@ -52,18 +67,10 @@ def constant_to_tex(parameters_path, parameter_name, const_name, format):
     process_log.append(('constant_to_tex', '{}:{}'.format(parameters_path, parameter_name), const_name))
 
 
-project_path    = 'C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave'
-data_path       = os.path.join(project_path, 'Data')
-gen_output_path = os.path.join(project_path, 'Tekst/fig/gen')
-constants_path  = os.path.join(project_path, 'Tekst/constants.tex')
-process_log = []
-constants = []
-
 if os.path.exists(gen_output_path):
     shutil.rmtree(gen_output_path)
 os.makedirs(gen_output_path)
 
-run_dir_three_phase_no_split = 'Runs/run_110_three_phase_no_split_20181121_16_38_54_565809'
 tiff_to_png(
         os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_nmf.tiff'),
         os.path.join(gen_output_path, 'three_phase_no_split_loading_map_nmf.png'))
@@ -113,7 +120,6 @@ copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.
         os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
 
 
-run_dir_vdf = 'Runs/run_vdf_20181123_23_43_59_319093'
 tiff_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
         os.path.join(gen_output_path, 'vdf_110_wz.png'))
