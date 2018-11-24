@@ -18,6 +18,7 @@ constants_path  = parameters['constants_path']
 
 run_dir_three_phase_no_split = parameters['run_dir_three_phase_no_split']
 run_dir_vdf                  = parameters['run_dir_vdf']
+run_dir_full_110_nmf         = parameters['run_dir_full_110_nmf']
 
 process_log = []
 constants = []
@@ -71,6 +72,9 @@ if os.path.exists(gen_output_path):
     shutil.rmtree(gen_output_path)
 os.makedirs(gen_output_path)
 
+#
+# Three phase no split NMF
+#
 tiff_to_png(
         os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_nmf.tiff'),
         os.path.join(gen_output_path, 'three_phase_no_split_loading_map_nmf.png'))
@@ -84,6 +88,14 @@ tiff_to_png(
         os.path.join(data_path, run_dir_three_phase_no_split, 'nmf_0-50_0-50_factors_2.tiff'),
         os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_2.png'))
 
+constant_to_tex(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
+        '__elapsed_time_nmf', 'ThreePhaseNoSplitNMFTime', '.2f')
+
+
+#
+# Three phase no split UMAP
+#
 tiff_to_png(
         os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_umap.tiff'),
         os.path.join(gen_output_path, 'three_phase_no_split_loading_map_umap.png'))
@@ -108,18 +120,21 @@ tiff_to_png(
 
 constant_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
-        '__elapsed_time_nmf', 'ThreePhaseNoSplitNMFTime', '.2f')
-constant_to_tex(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
         '__elapsed_time_umap', 'ThreePhaseNoSplitUMAPTime', '.2f')
 
 
+#
+# Three phase no split template matching
+#
 copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'phase_map.pgf'),
         os.path.join(gen_output_path, 'three_phase_no_split_template_match_phase_map.pgf'))
 copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.pgf'),
         os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
 
 
+#
+# 110 full VDF
+#
 tiff_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
         os.path.join(gen_output_path, 'vdf_110_wz.png'))
@@ -134,6 +149,14 @@ tiff_combine_rgb_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tiff'),
         os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
         os.path.join(gen_output_path, 'vdf_110.png'))
+
+
+#
+# 110 full NMF
+#
+tiff_to_png(
+        os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_nmf.tiff'),
+        os.path.join(gen_output_path, 'full_110_loading_map_nmf.png'))
 
 
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:

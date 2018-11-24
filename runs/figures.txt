@@ -9,3 +9,4 @@ constants_path  = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Tekst/co
 # Relative to data_path
 run_dir_three_phase_no_split = Runs/run_110_three_phase_no_split_20181121_16_38_54_565809
 run_dir_vdf = Runs/run_vdf_20181123_23_43_59_319093
+run_dir_full_110_nmf = Runs/run_110_full_nmf_20181123_21_51_25_665830
