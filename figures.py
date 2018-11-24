@@ -19,6 +19,7 @@ constants_path  = parameters['constants_path']
 run_dir_three_phase_no_split = parameters['run_dir_three_phase_no_split']
 run_dir_vdf                  = parameters['run_dir_vdf']
 run_dir_full_110_nmf         = parameters['run_dir_full_110_nmf']
+run_dir_full_110_template    = parameters['run_dir_full_110_template']
 
 process_log = []
 constants = []
@@ -157,6 +158,16 @@ tiff_combine_rgb_to_png(
 tiff_to_png(
         os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_nmf.tiff'),
         os.path.join(gen_output_path, 'full_110_loading_map_nmf.png'))
+
+
+#
+# 110 full template
+#
+copy_pgf(os.path.join(data_path, run_dir_full_110_template, 'phase_map.pgf'),
+        os.path.join(gen_output_path, 'full_110_template_match_phase_map.pgf'))
+copy_pgf(os.path.join(data_path, run_dir_full_110_template, 'orientation_map.pgf'),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map.pgf'))
+
 
 
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
