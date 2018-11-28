@@ -1,6 +1,6 @@
 shortname = vdf
 output_dir = ../../Data/Runs
 
-vdf_110_zb_1 = 53 66 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
-vdf_110_zb_2 = 70 87 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
-vdf_110_wz = 48 59 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
+vdf_110_zb_1 = 100 20 53 66 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
+vdf_110_zb_2 = 100 170 70 87 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
+vdf_110_wz = 100 50 48 59 1.5 D:\Dokumenter\MTNANO\Prosjektoppgave\SPED_data_GaAs_NW\raw\Julie_180510_SCN45_FIB_a.blo
