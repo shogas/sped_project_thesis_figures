@@ -81,15 +81,29 @@ def tiff_combine_rgb_to_png(src_r, src_g, src_b, dest):
     process_log.append(('tiff_combine_rgb_to_png', '|'.join((src_r, src_g, src_b)), dest))
 
 
-def constant_to_tex(parameters_path, parameter_name, const_name, format):
+def parameter_to_tex(parameters_path, parameter_name, const_name, format):
     parameters = parameters_parse(parameters_path)
     constants.append((const_name, parameters[parameter_name], format))
-    process_log.append(('constant_to_tex', '{}:{}'.format(parameters_path, parameter_name), const_name))
+    process_log.append(('parameter_to_tex', '{}:{}'.format(parameters_path, parameter_name), const_name))
+
+
+def constant_to_tex(constant, const_name, format):
+    constants.append((const_name, constant, format))
+    process_log.append(('constant_to_tex', 'constant_value:{}'.format(constant), const_name))
 
 
 if os.path.exists(gen_output_path):
     shutil.rmtree(gen_output_path)
 os.makedirs(gen_output_path)
+
+
+
+#
+# Constants
+#
+constant_to_tex(1.28, 'OneOneZeroSpatialResolution', '.2f')
+
+
 
 #
 # Three phase no split NMF
@@ -107,7 +121,7 @@ tiff_to_png(
         os.path.join(data_path, run_dir_three_phase_no_split, 'nmf_0-50_0-50_factors_2.tiff'),
         os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_2.png'))
 
-constant_to_tex(
+parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
         '__elapsed_time_nmf', 'ThreePhaseNoSplitNMFTime', '.2f')
 
@@ -137,7 +151,7 @@ tiff_to_png(
         # os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_6.tiff'),
         # os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_6.png'))
 
-constant_to_tex(
+parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
         '__elapsed_time_umap', 'ThreePhaseNoSplitUMAPTime', '.2f')
 
