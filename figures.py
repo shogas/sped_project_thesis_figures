@@ -49,6 +49,24 @@ def copy_pgf(src, dest):
     process_log.append(('pgf_rewrite', src, dest))
 
 
+def copy_tikz(src, dest):
+    with open(src) as tikz_file:
+        content = tikz_file.read()
+
+    dir_src = os.path.dirname(src)
+    dir_dest = os.path.dirname(dest)
+    included_file_regex = re.compile(r"""includegraphics\[(?P<param>[^\]]*)\]{(?P<filename>[^<>:;,?"*|\/}]+)}""", re.X)
+    for match in re.finditer(included_file_regex, content):
+        copy(
+            os.path.join(dir_src, match.group('filename')),
+            os.path.join(dir_dest, match.group('filename')))
+
+    dest_content = re.sub(included_file_regex, r'includegraphics[\g<param>]{fig/gen/\g<filename>}', content)
+    with open(dest, 'w') as dest_file:
+        dest_file.write(dest_content)
+    process_log.append(('tikz_rewrite', src, dest))
+
+
 def tiff_to_png(src, dest):
     src_file = Image.open(src)
     src_file.save(dest)
