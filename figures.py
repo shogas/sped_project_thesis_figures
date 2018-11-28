@@ -160,29 +160,39 @@ parameter_to_tex(
 #
 # Three phase no split template matching
 #
-copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'phase_map.pgf'),
-        os.path.join(gen_output_path, 'three_phase_no_split_template_match_phase_map.pgf'))
-copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.pgf'),
-        os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
+# copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'phase_map.pgf'),
+        # os.path.join(gen_output_path, 'three_phase_no_split_template_match_phase_map.pgf'))
+# copy_pgf(os.path.join(data_path, run_dir_three_phase_no_split, 'orientation_map.pgf'),
+        # os.path.join(gen_output_path, 'three_phase_no_split_template_match_orientation_map.pgf'))
 
 
 #
 # 110 full VDF
 #
-tiff_to_png(
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
-        os.path.join(gen_output_path, 'vdf_110_wz.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tiff'),
-        os.path.join(gen_output_path, 'vdf_110_zb_1.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
-        os.path.join(gen_output_path, 'vdf_110_zb_2.png'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_zb_1.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_zb_2.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_wz.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1_dp.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_dp_zb_1.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2_dp.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_dp_zb_2.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz_dp.tex'),
+        os.path.join(gen_output_path, 'full_110_vdf_dp_wz.tex'))
 tiff_combine_rgb_to_png(
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.tiff'),
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.tiff'),
-        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.tiff'),
-        os.path.join(gen_output_path, 'vdf_110.png'))
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_1.png'),
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_zb_2.png'),
+        os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.png'),
+        os.path.join(gen_output_path, 'full_110_vdf.png'))
+
 
 
 #
@@ -230,10 +240,21 @@ copy_tikz(
 #
 # 110 full template
 #
-copy_pgf(os.path.join(data_path, run_dir_full_110_template, 'phase_map.pgf'),
-        os.path.join(gen_output_path, 'full_110_template_match_phase_map.pgf'))
-copy_pgf(os.path.join(data_path, run_dir_full_110_template, 'orientation_map.pgf'),
-        os.path.join(gen_output_path, 'full_110_template_match_orientation_map.pgf'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'phase_map.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_phase_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_zb.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_zb.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_color_zb.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_color_zb.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_wz.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_wz.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_color_wz.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_color_wz.tex'))
 
 
 

@@ -6,8 +6,8 @@ import pickle
 from tqdm import tqdm as report_progress
 
 import matplotlib
-# matplotlib.use('Qt5Agg')
-matplotlib.use('pgf')
+matplotlib.use('Qt5Agg')
+# matplotlib.use('pgf')
 import matplotlib.pyplot as plt
 
 
@@ -16,25 +16,10 @@ from pyxem.signals.indexation_results import IndexationResults
 
 from common import result_object_file_info
 from parameters import parameters_parse
+from figure import save_figure
+from figure import TikzImage
+from figure import TikzScalebar
 
-
-matplotlib.rcParams['text.usetex'] = True
-matplotlib.rcParams['pgf.rcfonts'] = False
-matplotlib.rcParams['image.interpolation'] = 'none'
-
-
-def save_figure(signal, filename, padding=(0.05, 0.05, 1, 1), size=(2.5, 2.5), **kwargs):
-    plot = hs.plot.plot_images(signal,
-            label=None,
-            suptitle=None,
-            tight_layout=True,
-            padding={'left': padding[0], 'bottom': padding[1], 'right': padding[2], 'top': padding[3]},
-            **kwargs)[0]
-    plot.figure.set_size_inches(size)
-
-    plot.figure.savefig(filename + '.pdf')
-    plot.figure.savefig(filename + '.pgf')
-    # plt.show()
 
 def combine_indexation_results(object_infos):
     total_width  = max((info['x_stop'] for info in object_infos))
@@ -72,7 +57,7 @@ def combine_orientations(result_directory):
         indexation_results = combine_indexation_results(object_infos['template_match'])
 
         crystal_map = indexation_results.get_crystallographic_map()
-        crystal_map.save_mtex_map('mtex_test.csv')
+        crystal_map.save_mtex_map(os.path.join(result_directory, 'mtex_test.csv'))
         phase_map = crystal_map.get_phase_map()
         orientation_map = crystal_map.get_orientation_map()
 
@@ -81,14 +66,30 @@ def combine_orientations(result_directory):
         phase_map.axes_manager.signal_axes[1].name = '$y$'
         orientation_map.axes_manager.signal_axes[0].name = '$x$'
         orientation_map.axes_manager.signal_axes[1].name = '$y$'
-        save_figure(phase_map, os.path.join(result_directory, 'phase_map'), scalebar='all', colorbar=False)
-        save_figure(orientation_map, os.path.join(result_directory, 'orientation_map'),
-                padding=(0.1, 0.05, 1, 1),
-                scalebar='all')
+
+        nav_scale_x = parameters['nav_scale_x']
+        nav_width = phase_map.data.shape[1]
+        save_figure(
+                os.path.join(result_directory, 'phase_map.tex'),
+                TikzImage(phase_map.data.astype('uint8')),
+                TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
+
+        save_figure(
+                os.path.join(result_directory, 'orientation_map_zb.tex'),
+                TikzImage('orientation_map_zb.pdf'))
+        save_figure(
+                os.path.join(result_directory, 'orientation_map_color_zb.tex'),
+                TikzImage('orientation_map_color_zb.pdf'))
+
+        save_figure(
+                os.path.join(result_directory, 'orientation_map_wz.tex'),
+                TikzImage('orientation_map_wz.pdf'))
+        save_figure(
+                os.path.join(result_directory, 'orientation_map_color_wz.tex'),
+                TikzImage('orientation_map_color_wz.pdf'))
 
 
-
-        # dp = hs.load('D:/Dokumenter/MTNANO/Prosjektoppgave/SPED_data_GaAs_NW/gen/Julie_180510_SCN45_FIB_a_three_phase_single_area.hdf5')
+        # dp = hs.load('D:/Dokumenter/MTNANO/Prosjektoppgave/SPED_data_GaAs_NW/gen/Julie_180510_SCN45_FIB_a_three_phase_single_area.hdf5'
         # dp.axes_manager.signal_axes[0].scale = 0.032
         # dp.axes_manager.signal_axes[1].scale = 0.032
         # dp.axes_manager.signal_axes[0].offset = -72*0.032
