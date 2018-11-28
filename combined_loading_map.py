@@ -17,18 +17,51 @@ from pyxem.generators.structure_library_generator import StructureLibraryGenerat
 from common import result_image_file_info
 from parameters import parameters_parse
 
+from figure import save_figure
+from figure import TikzImage
+from figure import TikzScalebar
+
+
 def image_l2_norm(image_a, image_b):
-    image_a = np.fft.fft2(image_a)
     image_a *= 1/image_a.max()
-    image_b = np.fft.fft2(image_b)
     image_b *= 1/image_b.max()
     return np.linalg.norm(image_a - image_b, ord='fro')
+
+
+def image_l2_norm_fft(image_a, image_b):
+    image_a = np.fft.fft2(image_a)
+    image_b = np.fft.fft2(image_b)
+    return image_l2_norm(image_a, image_b)
+
+
+def load_compare_factors(parameters, known_factors):
+    zb_1 = np.asarray(Image.open('../../Data/compare_factor_zb_1.png')).astype('float')
+    known_factors.append(zb_1 / zb_1.max())
+    zb_2 = np.asarray(Image.open('../../Data/compare_factor_zb_2.png')).astype('float')
+    known_factors.append(zb_2 / zb_2.max())
+    wz = np.asarray(Image.open('../../Data/compare_factor_wz.png')).astype('float')
+    known_factors.append(wz / wz.max())
+    vac = np.asarray(Image.open('../../Data/compare_factor_vac.png')).astype('float')
+    known_factors.append(vac / vac.max())
+
+
+def classify_compare_l2_norm(parameters, factor, known_factors):
+    if len(known_factors) == 0:
+        load_compare_factors(parameters, known_factors)
+
+    diffs = [image_l2_norm_fft(factor, known_factor) for known_factor in known_factors]
+    best_diff_index = np.argmin(diffs)
+    best_diff = diffs[best_diff_index]
+    factor_index = best_diff_index
+    report_progress.write('    Matched phase {} (difference {})'.format(factor_index, best_diff))
+
+    return factor_index
 
 
 def classify_l2_norm(parameters, factor, known_factors):
     threshold = parameters['classify_l2_norm_threshold']
     if len(known_factors) > 0:
-        diffs = [image_l2_norm(factor, known_factor) for known_factor in known_factors]
+        diffs = [image_l2_norm_fft(factor, known_factor) for known_factor in known_factors]
         best_diff_index = np.argmin(diffs)
         best_diff = diffs[best_diff_index]
         if (best_diff < threshold):
@@ -135,14 +168,15 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
     known_factors = []
     factor_info = factor_infos[0]
     last_tile = (0, 0, 0, 0)
+    factors = []
     for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
         tile = (factor_info['x_start'], factor_info['x_stop'],
                 factor_info['y_start'], factor_info['y_stop'])
         if tile != last_tile:
             report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
             last_tile = tile
-        factor = np.asarray(Image.open(factor_info['filename']))
-        factor = factor/factor.max()
+        factor = np.asarray(Image.open(factor_info['filename'])).astype('float')
+        factor *= 1/factor.max()
 
         factor_index = classify(parameters, factor, known_factors)
         report_progress.write('    Factor index: {}'.format(factor_index))
@@ -152,9 +186,11 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         combined_loadings[
                 factor_info['y_start']:factor_info['y_stop'],
                 factor_info['x_start']:factor_info['x_stop']] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
+        pixel_count = np.count_nonzero(loading[loading > 10])
+        factors.append((factor_index, factor, pixel_count))
 
     combined_loadings *= 255 / combined_loadings.max()
-    return Image.fromarray(combined_loadings.astype('uint8'))
+    return combined_loadings.astype('uint8'), factors
 
 
 def combine_loading_maps(parameters, result_directory, classification_method):
@@ -165,16 +201,39 @@ def combine_loading_maps(parameters, result_directory, classification_method):
     loading_infos = result_image_file_info(result_directory, 'loadings')
     classify = {
         'l2_norm': classify_l2_norm,
+        'l2_norm_compare': classify_compare_l2_norm,
         'template_match': classify_template_match,
     }[classification_method]
+    allfactors = {}
+    allfactor_weights = {}
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
-        combined_loadings = combine_loading_map(
+        combined_loadings, factors = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
                 loading_infos_for_method,
                 classify)
-        combined_loadings.save(os.path.join(result_directory, 'loading_map_{}.tiff'.format(method_name)))
+        for factor_index, factor, count in factors:
+            if factor_index not in allfactors:
+                allfactors[factor_index] = []
+                allfactor_weights[factor_index] = []
+            allfactors[factor_index].append(factor)
+            allfactor_weights[factor_index].append(count)
+
+        nav_width = combined_loadings.data.shape[1]
+        save_figure(
+                os.path.join(result_directory, 'loading_map_{}.tex'.format(method_name)),
+                TikzImage(combined_loadings),
+                TikzScalebar(100, parameters['nav_scale_x']*nav_width, r'\SI{100}{\nm}'))
+
+    for (factor_index, factor_list), factor_weights in zip(allfactors.items(), allfactor_weights.values()):
+        print(factor_weights)
+        factor_average = np.average(factor_list, weights=factor_weights, axis=0)
+        factor_average *= 255.0 / factor_average.max()
+        save_figure(
+                os.path.join(result_directory, 'factor_average_{}_{}.tex'.format(method_name, factor_index)),
+                TikzImage(factor_average.astype('uint8')))
+
 
 if __name__ == '__main__':
     # TODO(simonhog): Make these less global. known_factors -> general dictionary for data?

@@ -19,6 +19,7 @@ constants_path  = parameters['constants_path']
 run_dir_three_phase_no_split = parameters['run_dir_three_phase_no_split']
 run_dir_vdf                  = parameters['run_dir_vdf']
 run_dir_full_110_nmf         = parameters['run_dir_full_110_nmf']
+run_dir_full_110_umap        = parameters['run_dir_full_110_umap']
 run_dir_full_110_template    = parameters['run_dir_full_110_template']
 
 process_log = []
@@ -187,9 +188,43 @@ tiff_combine_rgb_to_png(
 #
 # 110 full NMF
 #
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_nmf.tex'),
+        os.path.join(gen_output_path, 'full_110_nmf_loading_map.tex'))
 tiff_to_png(
-        os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_nmf.tiff'),
-        os.path.join(gen_output_path, 'full_110_loading_map_nmf.png'))
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_0.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_factor_zb_1.png'))
+tiff_to_png(
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_1.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_factor_zb_2.png'))
+tiff_to_png(
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_2.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_factor_wz.png'))
+tiff_to_png(
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_3.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_factor_vacuum.png'))
+
+
+
+#
+# 110 full UMAP
+#
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'loading_map_umap.tex'),
+        os.path.join(gen_output_path, 'full_110_umap_loading_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'factor_average_umap_0.tex'),
+        os.path.join(gen_output_path, 'full_110_umap_factor_average_zb_1.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'factor_average_umap_1.tex'),
+        os.path.join(gen_output_path, 'full_110_umap_factor_average_zb_2.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'factor_average_umap_2.tex'),
+        os.path.join(gen_output_path, 'full_110_umap_factor_average_wz.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'factor_average_umap_3.tex'),
+        os.path.join(gen_output_path, 'full_110_umap_factor_average_vacuum.tex'))
+
 
 
 #
@@ -204,11 +239,13 @@ copy_pgf(os.path.join(data_path, run_dir_full_110_template, 'orientation_map.pgf
 
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
     for action, src, dest in process_log:
+        src = src.replace(data_path, '')
+        dest = dest.replace(data_path, '')
         f.write('{}\t{}\t{}\n'.format(action, src, dest))
-        print('{}\t{}\t{}\n'.format(action, src, dest))
+        print('{:10s}\t{}\t{}\n'.format(action, src, dest))
 
 
 
 with open(os.path.join(constants_path), 'w') as f:
     for const_name, const_value, format in constants:
-        f.write(('\\def\\constData{}{{{:' + format + '}}}').format(const_name, const_value))
+        f.write(('\\def\\constData{}{{{:' + format + '}}}\n').format(const_name, const_value))
