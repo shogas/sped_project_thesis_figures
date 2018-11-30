@@ -83,3 +83,59 @@ class TikzScalebar(TikzElement):
 """.format(text=self.text, sb_width=self.scalebar_width_physical, im_width=self.image_width_physical)
 
 
+class TikzAxis(TikzElement):
+    def __init__(self, *args, **kwargs):
+        self.axis_properties = kwargs
+        self.elements = args
+
+
+    def write(self, figure_filename, last_shape):
+        result = r"""\begin{{axis}}[
+    {}]
+""".format(',\n    '.join(('{}={}'.format(key.replace('_', ' '), value) for key, value in self.axis_properties.items())))
+        result += '    ' + (
+                '\n'.join(element.write(figure_filename, last_shape) for element in self.elements)).replace('\n', '\n    ')
+        result += '\n\\end{axis}'
+        return result
+
+
+class TikzTablePlot(TikzElement):
+    def __init__(self, xs, ys, errors=[], **kwargs):
+        if len(xs) != len(ys) or (len(errors) > 0 and len(xs) != len(errors)):
+            raise ValueError('X-axis, y-axis and errors (if specified) must have the same length. Got {}, {}{}'.format(
+                len(xs), len(ys), ', {}'.format(len(errors)) if len(errors) > 0 else ''))
+        self.xs = xs
+        self.ys = ys
+        self.errors = errors
+        self.plot_properties = kwargs
+
+
+    def write(self, figure_filename, last_shape):
+        result = r"""\addplot+[
+    {}""".format((',\n    '.join('{}={}'.format(key.replace('_', ' '), value) for key, value in self.plot_properties.items())))
+        if len(self.errors) > 0:
+            result += r""",
+    error bars/.cd,
+        y fixed,
+        y dir=both,
+        y explicit] table [x=x, y=y,y error=error, col sep=comma] {{
+        x,  y,       error
+{}
+}};""".format('\n'.join('        {}, {}, {}'.format(x, y, error) for x, y, error in zip(self.xs, self.ys, self.errors)))
+        else:
+            result += r"""] table [x=x, y=y, col sep=comma] {{
+        x,  y,
+{}
+}};""".format('\n'.join('        {}, {}'.format(x, y) for x, y in zip(self.xs, self.ys)))
+
+        return result
+
+
+class TikzLegend(TikzElement):
+    def __init__(self, *args):
+        self.entries = args
+
+
+    def write(self, figure_filename, last_shape):
+        return '\n'.join(r'\addlegendentry{{{}}}'.format(entry) for entry in self.entries)
+
