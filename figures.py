@@ -102,7 +102,18 @@ os.makedirs(gen_output_path)
 #
 # Constants
 #
-constant_to_tex(1.28, 'OneOneZeroSpatialResolution', '.2f')
+# TODO: Get these from the actual dataset
+constant_to_tex(1.28,     'OneOneZeroSpatialResolution', '.2f')
+constant_to_tex(290,      'OneOneZeroPixelWidth', 'd')
+constant_to_tex(410,      'OneOneZeroPixelHeight', 'd')
+constant_to_tex(290*410,  'OneOneZeroPixelCount', 'd')
+constant_to_tex(410*1.28, 'OneOneZeroRealHeight', '.1f')
+constant_to_tex(1.28,     'OneOneZeroSimpleSpatialResolution', '.2f')
+constant_to_tex(50,      'OneOneZeroSimplePixelWidth', 'd')
+constant_to_tex(50,      'OneOneZeroSimplePixelHeight', 'd')
+constant_to_tex(50*50,  'OneOneZeroSimplePixelCount', 'd')
+constant_to_tex(50*1.28, 'OneOneZeroSimpleRealWidth', '.1f')
+constant_to_tex(50*1.28, 'OneOneZeroSimpleRealHeight', '.1f')
 
 
 
