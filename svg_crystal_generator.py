@@ -1,66 +1,6 @@
 import math
+import sys
 import numpy as np
-
-
-# ZB: width="1000" height="700" viewBox="-9 -16 25 25">
-svg = """<?xml version="1.0" encoding="UTF-8"?>
-
-<svg xmlns="http://www.w3.org/2000/svg" version="2.0"
-      width="1920" height="900" viewBox="-2 -7 12 10">
-    <defs>
-        <radialGradient id="Gahighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-            <stop offset="0%"   stop-color="#55ff55" />
-            <stop offset="100%" stop-color="#449944" />
-        </radialGradient>
-        <radialGradient id="Ashighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-            <stop offset="0%"   stop-color="#ff5555" />
-            <stop offset="100%" stop-color="#994444" />
-        </radialGradient>
-        <linearGradient id="linehighlight" gradientUnits="userSpaceOnUse" gradientTransform="rotate(90)">
-            <stop offset="0"   stop-color="#424242" />
-            <stop offset="0.5" stop-color="#999999" />
-            <stop offset="1"   stop-color="#424242" />
-        </linearGradient>
-    </defs>
-"""
-
-
-elements = []
-camera_position = np.array((50.0, 20.0, 10.0))
-fov = 100
-line_outline_width = 0.03
-line_outline_color = '#000000'
-line_bind_width = 0.1
-line_bind_color = '#555555'
-r_Ga = 2
-r_As = 1.5
-
-def add_sphere(x, y, z, r, atom_type):
-    pos = np.array([x, y, z, 1]) @ model_to_world @ world_to_camera @ camera_to_projected
-    scale = pos[3] if pos[3] != 0 else 1
-    camera_distance = abs(np.linalg.norm(np.array([x, y, z] - camera_position)))
-    radius = 15.0 / np.tan(np.deg2rad(0.5*fov)) * r / np.sqrt(camera_distance**2 - r**2)
-    elements.append((
-        'circle', pos[2], {
-            'cx': pos[0],
-            'cy': -pos[1],
-            'r': radius,  #r/np.sqrt(abs(scale)),
-            # 'opacity': '0.6',
-            'fill': 'url(#{}highlight)'.format(atom_type)}))
-
-
-def add_line(pos_from, pos_to, color, width):
-    pos_from = np.array([*pos_from, 1]) @ model_to_world @ world_to_camera @ camera_to_projected
-    pos_to = np.array([*pos_to, 1]) @ model_to_world @ world_to_camera @ camera_to_projected
-    elements.append((
-        'line', max(pos_from[2], pos_to[2]) + 1, {
-            'x1': pos_from[0],
-            'y1': -pos_from[1],
-            'x2': pos_to[0],
-            'y2': -pos_to[1],
-            'stroke': color,
-            # 'stroke': 'url(#linehighlight)',
-            'stroke-width': width}))
 
 
 def get_projection(near, far, fov):
@@ -92,16 +32,80 @@ def lookat(pos_from, pos_to):
         [ *pos_from, 1 ]]).T
 
 
-world_to_camera = lookat(camera_position, (0, 0, 0))
-# print(world_to_camera)
+class VectorFigure3d:
+    def __init__(self, fov, camera_position):
+        self.fov = fov
+        self.camera_position = camera_position
+        self.elements = []
+        self.model_to_world = np.array([
+            [ 1, 0, 0,   0 ],
+            [ 0, 1, 0,   0 ],
+            [ 0, 0, 1,   0 ],
+            [ 0, 0, 0,   1 ]])
+        self.world_to_camera = lookat(camera_position, (0, 0, 0))
+        self.camera_to_projected = get_projection(near=1, far=10000, fov=fov)
+        self.model_to_projected = self.model_to_world @ self.world_to_camera @ self.camera_to_projected
 
-model_to_world = np.array([
-    [ 1, 0, 0,   0 ],
-    [ 0, 1, 0,   0 ],
-    [ 0, 0, 1,   0 ],
-    [ 0, 0, 0,   1 ]])
 
-camera_to_projected = get_projection(near=1, far=10000, fov=fov)
+    def write(self, filename):
+        # ZB: width="1000" height="700" viewBox="-9 -16 25 25">
+        svg = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="2.0"
+      width="1920" height="900" viewBox="-2 -7 12 10">
+    <defs>
+        <radialGradient id="Gahighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%"   stop-color="#55ff55" />
+            <stop offset="100%" stop-color="#449944" />
+        </radialGradient>
+        <radialGradient id="Ashighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%"   stop-color="#ff5555" />
+            <stop offset="100%" stop-color="#994444" />
+        </radialGradient>
+        <linearGradient id="linehighlight" gradientUnits="userSpaceOnUse" gradientTransform="rotate(90)">
+            <stop offset="0"   stop-color="#424242" />
+            <stop offset="0.5" stop-color="#999999" />
+            <stop offset="1"   stop-color="#424242" />
+        </linearGradient>
+    </defs>
+"""
+        self.elements.sort(key=lambda element: -element[1])
+        for name, z, attributes in self.elements:
+            svg += '    <{} {} />\n'.format(name, ' '.join(('{}="{}"'.format(key, value) for key, value in attributes.items())))
+
+        svg += "</svg>\n"
+
+        with open(filename, 'w') as f:
+            f.write(svg)
+
+
+    def add_sphere(self, x, y, z, r, atom_type):
+        pos = np.array([x, y, z, 1]) @ self.model_to_projected
+        scale = pos[3] if pos[3] != 0 else 1
+        camera_distance = abs(np.linalg.norm(np.array([x, y, z] - self.camera_position)))
+        radius = 15.0 / np.tan(np.deg2rad(0.5*self.fov)) * r / np.sqrt(camera_distance**2 - r**2)
+        self.elements.append((
+            'circle', pos[2], {
+                'cx': pos[0],
+                'cy': -pos[1],
+                'r': radius,  #r/np.sqrt(abs(scale)),
+                # 'opacity': '0.6',
+                'fill': 'url(#{}highlight)'.format(atom_type)}))
+
+
+    def add_line(self, pos_from, pos_to, color, width):
+        pos_from = np.array([*pos_from, 1]) @ self.model_to_projected
+        pos_to = np.array([*pos_to, 1]) @ self.model_to_projected
+        self.elements.append((
+            'line', max(pos_from[2], pos_to[2]) + 1, {
+                'x1': pos_from[0],
+                'y1': -pos_from[1],
+                'x2': pos_to[0],
+                'y2': -pos_to[1],
+                'stroke': color,
+                # 'stroke': 'url(#linehighlight)',
+                'stroke-width': width}))
+
 
 def build_zb_structure():
     a = 4.066
@@ -220,17 +224,27 @@ def build_wz_structure():
     return atom_gas, atom_ass, outline_ends, bind_ends
 
 
-def add_structure(sphere_data, line_data):
+def create_structure(sphere_data, line_data):
+    fig = VectorFigure3d(fov=100, camera_position=np.array((50.0, 20.0, 10.0)))
     for atom_list, radius, name in sphere_data:
         for x, y, z in atom_list:
-            add_sphere(x, y, z, radius, name)
+            fig.add_sphere(x, y, z, radius, name)
 
     for end_list, color, width in line_data:
         for start, end in end_list:
-            add_line(start, end, color, width)
+            fig.add_line(start, end, color, width)
+
+    return fig
 
 
-def add_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
+def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
+    line_outline_width = 0.03
+    line_outline_color = '#000000'
+    line_bind_width = 0.1
+    line_bind_color = '#555555'
+    r_Ga = 1.5
+    r_As = 1.3
+
     sphere_data = [
         (atom_gas, r_Ga, 'Ga'),
         (atom_ass, r_As, 'As')
@@ -240,19 +254,14 @@ def add_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
         (outline_ends, line_outline_color, line_outline_width),
         (bind_ends, line_bind_color, line_bind_width)
     ]
-    add_structure(sphere_data, line_data)
+    return create_structure(sphere_data, line_data)
 
 
-add_GaAs_structure(*build_zb_structure())
-# add_GaAs_structure(*build_wz_structure())
+if __name__ == '__main__':
+    if sys.argv[1] == 'zb':
+        fig = create_GaAs_structure(*build_zb_structure())
+    elif sys.argv[1] == 'wz':
+        fig = create_GaAs_structure(*build_wz_structure())
 
+    fig.write(sys.argv[2])
 
-
-elements.sort(key=lambda element: -element[1])
-for name, z, attributes in elements:
-    svg += '    <{} {} />\n'.format(name, ' '.join(('{}="{}"'.format(key, value) for key, value in attributes.items())))
-
-svg += "</svg>\n"
-
-with open('../../data/Tmp/test.svg', 'w') as f:
-    f.write(svg)
