@@ -8,6 +8,7 @@ import os
 import sys
 
 import numpy as np
+import pandas
 
 from figure import save_figure
 from figure import TikzAxis
@@ -23,7 +24,7 @@ def extract_info(infos, info_type):
     return elapsed_and_memory, std, avg
 
 
-def propagate_std(a_avg, a_std, b_avg, b_std):
+def propagate_std_div(a_avg, a_std, b_avg, b_std):
     # NOTE(simonhog): From https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulas
     # outside -> elapsed_covariance = np.cov(new[:, 0], old[:, 0])[0, 1] if len(new) > 1 else 0
     # res = abs(a_avg / b_avg) * math.sqrt(
@@ -31,71 +32,78 @@ def propagate_std(a_avg, a_std, b_avg, b_std):
         # (b_std / b_avg)**2 -
         # 2*covariance/(a_avg*b_avg))
     # NOTE(simonhog): From https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3387884/
-    res = abs(a_avg / b_avg) * math.sqrt(
+    res = np.abs(a_avg / b_avg) * np.sqrt(
         (a_std / a_avg)**2 +
         (b_std / b_avg)**2)
     return res
 
 
 def combine_performance(result_directory):
-    results = defaultdict(list)
+    def parse_timestamp(t):
+        return datetime.strptime(t, '%Y%m%d_%H_%M_%S_%f')
+
+    def parse_timedelta_s(t):
+        return timedelta(seconds=float(t))
+
+    perf_dfs = []
     for run_dir in glob.iglob(os.path.join(result_directory, 'run_perf_correlate_*')):
         time_filename = os.path.join(run_dir, 'time.txt')
         mem_filename = os.path.join(run_dir, 'mem.txt')
+        time_df = pandas.read_csv(
+                time_filename,
+                sep='\t',
+                names=['timestamp', 'method', 'library_size', 'elapsed'],
+                converters={'timestamp': parse_timestamp})
+        mem_df = pandas.read_csv(
+                mem_filename,
+                sep='\t',
+                names=['timestamp', 'bytes'],
+                converters={'timestamp': parse_timestamp})
 
-        memory_entries = []
-        with open(mem_filename) as mem_file:
-            mem_reader = csv.reader(mem_file, delimiter='\t')
-            for timestamp, bytes in mem_reader:
-                memory_entries.append((datetime.strptime(timestamp, '%Y%m%d_%H_%M_%S_%f'), int(bytes)))
+        time_df = time_df.assign(elapsed_delta=time_df.elapsed.apply(parse_timedelta_s))
 
-        with open(time_filename) as time_file:
-            time_reader = csv.reader(time_file, delimiter='\t')
-            for timestamp, name, library_size, elapsed in time_reader:
-                library_size = int(library_size)
-                elapsed = float(elapsed)
-                end_time = datetime.strptime(timestamp, '%Y%m%d_%H_%M_%S_%f')
-                start_time = end_time - timedelta(seconds=elapsed)
-                peak_memory = max((bytes for time, bytes in memory_entries if time > start_time and time < end_time))
-                results[library_size].append((name, elapsed, peak_memory))
+        mem_peaks = np.empty((len(time_df),))
+        for i, row in time_df.iterrows():
+            mem_peaks[i] = mem_df.where(
+                    mem_df.timestamp >= (row.timestamp - row.elapsed_delta)
+                ).where(mem_df.timestamp <= row.timestamp).max().bytes
 
+        time_df = time_df.assign(mem_peak=mem_peaks)
+        perf_dfs.append(time_df)
 
-    library_sizes = []
-    elapsed_avgs = []
-    elapsed_stds = []
-    memory_avgs = []
-    memory_stds = []
-    for i, (library_size, infos) in enumerate(results.items()):
-        new, new_std, new_avg = extract_info(infos, 'new')
-        old, old_std, old_avg = extract_info(infos, 'old')
+    perf_df = pandas.concat(perf_dfs)
+    perf_grouped = perf_df.groupby(['method', 'library_size'])
+    mean = perf_grouped.mean()
+    std = perf_grouped.std()
 
-        print('n', new)
-        print('o', old)
-        library_sizes.append(library_size)
-        elapsed_avgs.append(old_avg[0] / new_avg[0])
-        elapsed_stds.append(propagate_std(old_avg[0], old_std[0], new_avg[0], new_std[0]))
-
-        memory_avgs.append(old_avg[1] / new_avg[1])
-        memory_stds.append(propagate_std(old_avg[1], old_std[1], new_avg[1], new_std[1]))
+    library_sizes = perf_df.library_size.unique()
+    mean_old = mean.xs('old')
+    mean_new = mean.xs('new')
+    std_old = std.xs('old')
+    std_new = std.xs('new')
+    elapsed_means = mean_old.elapsed / mean_new.elapsed
+    elapsed_stds = propagate_std_div(mean_old.elapsed, std_old.elapsed, mean_new.elapsed, std_new.elapsed)
+    memory_means = mean_new.mem_peak
+    memory_stds = std_new.mem_peak
 
     axis_styles = {
-        legend_pos: 'north west',
-        axis_x_line: bottom,
-        axis_y_line: left,
-        xmin: 0,
-        enlargelimits: 'upper',
-        grid: 'both'
+        'legend_pos': 'north west',
+        'axis_x_line': 'bottom',
+        'axis_y_line': 'left',
+        'xmin': 0,
+        'enlargelimits': 'upper',
+        'grid': 'both'
     }
     line_styles = {
-        color: 'MaterialBlue',
-        mark: '*',
-        mark_options: '{fill=MaterialBlue, scale=0.75}',
-        line_width: '1.5pt'
+        'color': 'MaterialBlue',
+        'mark': '*',
+        'mark_options': '{fill=MaterialBlue, scale=0.75}',
+        'line_width': '1.5pt'
     }
     save_figure(
             os.path.join(result_directory, 'performance_time.tex'),
             TikzAxis(
-                TikzTablePlot(library_sizes, elapsed_avgs, elapsed_stds, **line_styles),
+                TikzTablePlot(library_sizes, elapsed_means, elapsed_stds, **line_styles),
                 TikzLegend('Relative time'),
                 xlabel='{Library size}',
                 ylabel='{Relative time}',
@@ -104,7 +112,7 @@ def combine_performance(result_directory):
     save_figure(
             os.path.join(result_directory, 'performance_memory.tex'),
             TikzAxis(
-                TikzTablePlot(library_sizes, memory_avgs, memory_stds, **line_styles),
+                TikzTablePlot(library_sizes, memory_means, memory_stds, **line_styles),
                 TikzLegend('Relative memory'),
                 xlabel='{Library size}',
                 ylabel='{Relative memory}',
