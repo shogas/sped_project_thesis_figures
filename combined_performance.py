@@ -78,23 +78,37 @@ def combine_performance(result_directory):
         memory_avgs.append(old_avg[1] / new_avg[1])
         memory_stds.append(propagate_std(old_avg[1], old_std[1], new_avg[1], new_std[1]))
 
+    axis_styles = {
+        legend_pos: 'north west',
+        axis_x_line: bottom,
+        axis_y_line: left,
+        xmin: 0,
+        enlargelimits: 'upper',
+        grid: 'both'
+    }
+    line_styles = {
+        color: 'MaterialBlue',
+        mark: '*',
+        mark_options: '{fill=MaterialBlue, scale=0.75}',
+        line_width: '1.5pt'
+    }
     save_figure(
             os.path.join(result_directory, 'performance_time.tex'),
             TikzAxis(
-                TikzTablePlot(library_sizes, elapsed_avgs, elapsed_stds), # black, mark options={black, scale=0.75}, smooth, 
+                TikzTablePlot(library_sizes, elapsed_avgs, elapsed_stds, **line_styles),
                 TikzLegend('Relative time'),
                 xlabel='{Library size}',
                 ylabel='{Relative time}',
-                legend_pos='north west'))
+                **axis_styles))
 
     save_figure(
             os.path.join(result_directory, 'performance_memory.tex'),
             TikzAxis(
-                TikzTablePlot(library_sizes, memory_avgs, memory_stds), # black, mark options={black, scale=0.75}, smooth, 
+                TikzTablePlot(library_sizes, memory_avgs, memory_stds, **line_styles),
                 TikzLegend('Relative memory'),
                 xlabel='{Library size}',
                 ylabel='{Relative memory}',
-                legend_pos='north west'))
+                **axis_styles))
 
 
 if __name__ == '__main__':
