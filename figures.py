@@ -16,11 +16,23 @@ data_path       = parameters['data_path']
 gen_output_path = parameters['gen_output_path']
 constants_path  = parameters['constants_path']
 
-run_dir_three_phase_no_split = parameters['run_dir_three_phase_no_split']
-run_dir_vdf                  = parameters['run_dir_vdf']
-run_dir_full_110_nmf         = parameters['run_dir_full_110_nmf']
-run_dir_full_110_umap        = parameters['run_dir_full_110_umap']
-run_dir_full_110_template    = parameters['run_dir_full_110_template']
+run_dir_three_phase_no_split   = parameters['run_dir_three_phase_no_split']
+run_dir_vdf                    = parameters['run_dir_vdf']
+run_dir_full_110_nmf           = parameters['run_dir_full_110_nmf']
+run_dir_full_110_umap          = parameters['run_dir_full_110_umap']
+run_dir_full_110_template      = parameters['run_dir_full_110_template']
+run_dir_full_110_nmf_many_phase = parameters['run_dir_full_110_nmf_many_phase']
+
+run_dir_performance_correlate = parameters['run_dir_performance_correlate']
+run_dir_performance_split_nmf = parameters['run_dir_performance_split_nmf']
+
+run_dir_full_112_c_nmf  = parameters['run_dir_full_112_c_nmf']
+run_dir_full_112_d_nmf  = parameters['run_dir_full_112_d_nmf']
+run_dir_full_112_e_nmf  = parameters['run_dir_full_112_e_nmf']
+run_dir_full_112_c_umap = parameters['run_dir_full_112_c_umap']
+run_dir_full_112_d_umap = parameters['run_dir_full_112_d_umap']
+run_dir_full_112_e_umap = parameters['run_dir_full_112_e_umap']
+
 
 process_log = []
 constants = []
@@ -115,23 +127,31 @@ constant_to_tex(50*50,  'OneOneZeroSimplePixelCount', 'd')
 constant_to_tex(50*1.28, 'OneOneZeroSimpleRealWidth', '.1f')
 constant_to_tex(50*1.28, 'OneOneZeroSimpleRealHeight', '.1f')
 
+constant_to_tex(1.92, 'OneOneTwoSpatialResolution', '.2f')
+constant_to_tex(200, 'OneOneTwoPixelWidthC', '.2f')
+constant_to_tex(1810, 'OneOneTwoPixelHeightC', '.2f')
+constant_to_tex(180, 'OneOneTwoPixelWidthD', '.2f')
+constant_to_tex(1830, 'OneOneTwoPixelHeightD', '.2f')
+constant_to_tex(210, 'OneOneTwoPixelWidthE', '.2f')
+constant_to_tex(1830, 'OneOneTwoPixelHeightE', '.2f')
+constant_to_tex(200*1810 + 180*1830 + 210*1830, 'OneOneTwoPixelCount', '.2f')
 
 
 #
 # Three phase no split NMF
 #
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_nmf.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_loading_map_nmf.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'nmf_0-50_0-50_factors_0.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_0.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'nmf_0-50_0-50_factors_1.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_1.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'nmf_0-50_0-50_factors_2.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_2.png'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_110_three_phase_no_split_nmf.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_loading_map_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_nmf_0.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_0.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_nmf_1.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_1.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_nmf_2.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_2.tex'))
 
 parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
@@ -141,27 +161,27 @@ parameter_to_tex(
 #
 # Three phase no split UMAP
 #
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_umap.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_loading_map_umap.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_0.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_0.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_1.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_2.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_3.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_3.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_4.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_4.png'))
-tiff_to_png(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_5.tiff'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_5.png'))
-# tiff_to_png(
-        # os.path.join(data_path, run_dir_three_phase_no_split, 'umap_0-50_0-50_factors_6.tiff'),
-        # os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_6.png'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_110_three_phase_no_split_umap.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_loading_map_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_0.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_0.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_1.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_1.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_2.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_2.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_3.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_3.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_4.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_4.tex'))
+# copy_tikz(
+        # os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_5.tex'),
+        # os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_5.tex'))
 
 parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
@@ -204,13 +224,21 @@ tiff_combine_rgb_to_png(
         os.path.join(data_path, run_dir_vdf, 'vdf_110_wz.png'),
         os.path.join(gen_output_path, 'full_110_vdf.png'))
 
+for i in range(1, 8):
+    copy_tikz(
+            os.path.join(data_path, run_dir_vdf, 'vdf_112_c_{}.tex'.format(i)),
+            os.path.join(gen_output_path, 'full_112_c_vdf_{}.tex'.format(i)))
+    copy_tikz(
+            os.path.join(data_path, run_dir_vdf, 'vdf_112_c_{}_dp.tex'.format(i)),
+            os.path.join(gen_output_path, 'full_112_c_vdf_dp_{}.tex'.format(i)))
+
 
 
 #
 # 110 full NMF
 #
 copy_tikz(
-        os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_nmf.tex'),
+        os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_110_full_nmf.tex'),
         os.path.join(gen_output_path, 'full_110_nmf_loading_map.tex'))
 tiff_to_png(
         os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_0.tiff'),
@@ -224,6 +252,35 @@ tiff_to_png(
 tiff_to_png(
         os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_factors_3.tiff'),
         os.path.join(gen_output_path, 'full_110_nmf_factor_vacuum.png'))
+
+parameter_to_tex(
+        os.path.join(data_path, run_dir_full_110_nmf, 'metadata.txt'),
+        '__elapsed_time_nmf', 'OneOneZeroNMFTime', '.2f')
+
+for tiff_name, png_name in [
+    ('nmf_0-145_0-205_factors_0.tiff', 'full_110_nmf_many_phase_factor_0.png'),
+    ('nmf_0-145_0-205_factors_1.tiff', 'full_110_nmf_many_phase_factor_1.png'),
+    ('nmf_0-145_0-205_factors_2.tiff', 'full_110_nmf_many_phase_factor_2.png'),
+    ('nmf_0-145_0-205_factors_3.tiff', 'full_110_nmf_many_phase_factor_3.png'),
+    ('nmf_0-145_0-205_factors_4.tiff', 'full_110_nmf_many_phase_factor_4.png'),
+    ('nmf_0-145_0-205_factors_5.tiff', 'full_110_nmf_many_phase_factor_5.png'),
+    ('nmf_0-145_0-205_factors_6.tiff', 'full_110_nmf_many_phase_factor_6.png'),
+    ('nmf_0-145_0-205_factors_7.tiff', 'full_110_nmf_many_phase_factor_7.png'),
+    ('nmf_0-145_0-205_factors_8.tiff', 'full_110_nmf_many_phase_factor_8.png'),
+    ('nmf_0-145_0-205_factors_9.tiff', 'full_110_nmf_many_phase_factor_9.png'),
+    ('nmf_0-145_0-205_loadings_0.tiff', 'full_110_nmf_many_phase_loading_map_0.png'),
+    ('nmf_0-145_0-205_loadings_1.tiff', 'full_110_nmf_many_phase_loading_map_1.png'),
+    ('nmf_0-145_0-205_loadings_2.tiff', 'full_110_nmf_many_phase_loading_map_2.png'),
+    ('nmf_0-145_0-205_loadings_3.tiff', 'full_110_nmf_many_phase_loading_map_3.png'),
+    ('nmf_0-145_0-205_loadings_4.tiff', 'full_110_nmf_many_phase_loading_map_4.png'),
+    ('nmf_0-145_0-205_loadings_5.tiff', 'full_110_nmf_many_phase_loading_map_5.png'),
+    ('nmf_0-145_0-205_loadings_6.tiff', 'full_110_nmf_many_phase_loading_map_6.png'),
+    ('nmf_0-145_0-205_loadings_7.tiff', 'full_110_nmf_many_phase_loading_map_7.png'),
+    ('nmf_0-145_0-205_loadings_8.tiff', 'full_110_nmf_many_phase_loading_map_8.png'),
+    ('nmf_0-145_0-205_loadings_9.tiff', 'full_110_nmf_many_phase_loading_map_9.png')]:
+    tiff_to_png(
+            os.path.join(data_path, run_dir_full_110_nmf_many_phase, tiff_name),
+            os.path.join(gen_output_path, png_name))
 
 
 
@@ -246,6 +303,9 @@ copy_tikz(
         os.path.join(data_path, run_dir_full_110_umap, 'factor_average_umap_3.tex'),
         os.path.join(gen_output_path, 'full_110_umap_factor_average_vacuum.tex'))
 
+parameter_to_tex(
+        os.path.join(data_path, run_dir_full_110_umap, 'metadata.txt'),
+        '__elapsed_time_umap', 'OneOneZeroUMAPTime', '.2f')
 
 
 #
@@ -254,6 +314,12 @@ copy_tikz(
 copy_tikz(
         os.path.join(data_path, run_dir_full_110_template, 'phase_map.tex'),
         os.path.join(gen_output_path, 'full_110_template_match_phase_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'reliability_orientation_map.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_reliability_orientation_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_template, 'reliability_phase_map.tex'),
+        os.path.join(gen_output_path, 'full_110_template_match_reliability_phase_map.tex'))
 copy_tikz(
         os.path.join(data_path, run_dir_full_110_template, 'orientation_map_zb.tex'),
         os.path.join(gen_output_path, 'full_110_template_match_orientation_map_zb.tex'))
@@ -267,6 +333,62 @@ copy_tikz(
         os.path.join(data_path, run_dir_full_110_template, 'orientation_map_color_wz.tex'),
         os.path.join(gen_output_path, 'full_110_template_match_orientation_map_color_wz.tex'))
 
+parameter_to_tex(
+        os.path.join(data_path, run_dir_full_110_template, 'metadata.txt'),
+        '__elapsed_time_template_match', 'OneOneZeroTemplateMatchTime', '.2f')
+
+
+
+#
+# 112 full NMF
+#
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_nmf, 'loading_map_112_c_full_nmf_nmf.tex'),
+        os.path.join(gen_output_path, 'full_112_c_nmf_loading_map.tex'))
+# copy_tikz(
+        # os.path.join(data_path, run_dir_full_112_d_nmf, 'loading_map_nmf.tex'),
+        # os.path.join(gen_output_path, 'full_112_d_nmf_loading_map.tex'))
+# copy_tikz(
+        # os.path.join(data_path, run_dir_full_112_e_nmf, 'loading_map_nmf.tex'),
+        # os.path.join(gen_output_path, 'full_112_e_nmf_loading_map.tex'))
+# tiff_to_png(
+#         os.path.join(data_path, run_dir_full_112_c_nmf, 'nmf_0-200_0-150_factors_0.tiff'),
+#         os.path.join(gen_output_path, 'full_112_c_nmf_factor_zb_1.png'))
+# tiff_to_png(
+#         os.path.join(data_path, run_dir_full_112_c_nmf, 'nmf_0-200_0-150_factors_1.tiff'),
+#         os.path.join(gen_output_path, 'full_112_c_nmf_factor_zb_2.png'))
+# tiff_to_png(
+#         os.path.join(data_path, run_dir_full_112_c_nmf, 'nmf_0-200_0-150_factors_2.tiff'),
+#         os.path.join(gen_output_path, 'full_112_c_nmf_factor_wz.png'))
+# tiff_to_png(
+#         os.path.join(data_path, run_dir_full_112_c_nmf, 'nmf_0-200_0-150_factors_3.tiff'),
+#         os.path.join(gen_output_path, 'full_112_c_nmf_factor_vacuum.png'))
+
+
+
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_umap, 'loading_map_112_c_full_umap_umap.tex'),
+        os.path.join(gen_output_path, 'full_112_c_umap_loading_map.tex'))
+# copy_tikz(
+        # os.path.join(data_path, run_dir_full_112_d_umap, 'loading_map_112_d_full_umap.tex'),
+        # os.path.join(gen_output_path, 'full_112_d_umap_loading_map.tex'))
+# copy_tikz(
+        # os.path.join(data_path, run_dir_full_112_e_umap, 'loading_map_112_e_full_umap.tex'),
+        # os.path.join(gen_output_path, 'full_112_e_umap_loading_map.tex'))
+
+
+#
+# Performance graphs
+#
+copy_tikz(
+        os.path.join(data_path, run_dir_performance_correlate, 'performance_time.tex'),
+        os.path.join(gen_output_path, 'correlate_performance_time.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_performance_split_nmf, 'performance_time.tex'),
+        os.path.join(gen_output_path, 'split_nmf_performance_time.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_performance_split_nmf, 'performance_memory.tex'),
+        os.path.join(gen_output_path, 'split_nmf_performance_memory.tex'))
 
 
 with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
@@ -274,7 +396,7 @@ with open(os.path.join(gen_output_path, 'process_log.txt'), 'w') as f:
         src = src.replace(data_path, '')
         dest = dest.replace(data_path, '')
         f.write('{}\t{}\t{}\n'.format(action, src, dest))
-        print('{:10s}\t{}\t{}\n'.format(action, src, dest))
+        # print('{:10s}\t{}\t{}\n'.format(action, src, dest))
 
 
 

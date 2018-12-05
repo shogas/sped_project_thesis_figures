@@ -160,13 +160,13 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
     combined_loadings = np.zeros((total_height, total_width, 3))
 
     colors = np.array([
-            [1, 0, 0],
-            [0, 1, 0],
-            [0, 0, 1],
-            [1, 1, 0],
-            [1, 0, 1],
-            [0, 1, 1],
-            [1, 1, 1],
+            [1, 0, 0], # Red
+            [0, 1, 0], # Green
+            [0, 0, 1], # Blue
+            [1, 1, 0], # Yellow
+            [1, 0, 1], # Magenta
+            [0, 1, 1], # Cyan
+            [1, 1, 1], # White
             [0.5, 0, 0],
             [0, 0.5, 0],
             [0, 0, 0.5],
