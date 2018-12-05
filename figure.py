@@ -28,8 +28,9 @@ class TikzElement:
 
 
 class TikzImage(TikzElement):
-    def __init__(self, data):
+    def __init__(self, data, angle=0):
         self.data = data
+        self.angle = angle
 
 
     def write(self, figure_filename, _):
@@ -39,9 +40,18 @@ class TikzImage(TikzElement):
             image_filename = figure_filename.replace('.tex', '.png')
             save_image(image_filename, self.data)
 
+        if self.angle in (-90, 90):
+            include_graphics_arguments = r'height=0.98\textwidth, angle={}'.format(self.angle)
+        elif self.angle == 0:
+            include_graphics_arguments = r'width=0.98\textwidth'
+        else:
+            include_graphics_arguments = r'width=0.98\textwidth, angle={}'.format(self.angle)
+
         return r"""\node[anchor=south west, inner sep=0pt] (img) at (0,0)%
-    {{\includegraphics[width=0.98\textwidth]{{{}}}}};%
-""".format(os.path.basename(image_filename))
+    {{\includegraphics[{}]{{{}}}}};%
+""".format(
+        include_graphics_arguments,
+        os.path.basename(image_filename))
 
 
     def shape(self):
