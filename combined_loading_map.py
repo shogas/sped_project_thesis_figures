@@ -23,8 +23,10 @@ from figure import TikzScalebar
 
 
 def image_l2_norm(image_a, image_b):
-    image_a *= 1/image_a.max()
-    image_b *= 1/image_b.max()
+    a_max = image_a.max() or 1
+    b_max = image_b.max() or 1
+    image_a *= 1/a_max
+    image_b *= 1/b_max
     return np.linalg.norm(image_a - image_b, ord='fro')
 
 
@@ -176,7 +178,8 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
             last_tile = tile
         factor = np.asarray(Image.open(factor_info['filename'])).astype('float')
-        factor *= 1/factor.max()
+        factor_max = factor.max() or 1
+        factor *= 1/factor_max
 
         factor_index = classify(parameters, factor, known_factors)
         report_progress.write('    Factor index: {}'.format(factor_index))
