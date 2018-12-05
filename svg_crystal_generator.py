@@ -54,6 +54,10 @@ class VectorFigure3d:
 <svg xmlns="http://www.w3.org/2000/svg" version="2.0"
       width="1920" height="900" viewBox="-2 -7 12 10">
     <defs>
+        <radialGradient id="Ahighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%"   stop-color="#55ff55" />
+            <stop offset="100%" stop-color="#449944" />
+        </radialGradient>
         <radialGradient id="Gahighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
             <stop offset="0%"   stop-color="#55ff55" />
             <stop offset="100%" stop-color="#449944" />
@@ -68,6 +72,9 @@ class VectorFigure3d:
             <stop offset="1"   stop-color="#424242" />
         </linearGradient>
     </defs>
+    <marker id="VectorArrow" markerUnits="strokeWidth" markerWidth="10" orient="auto" markerHeight="10" refY="2" refX="3.7">
+      <path d="M0,0 L0,4 L5,2 z"/>
+    </marker>
 """
         self.elements.sort(key=lambda element: -element[1])
         for name, z, attributes in self.elements:
@@ -104,6 +111,23 @@ class VectorFigure3d:
                 'y2': -pos_to[1],
                 'stroke': color,
                 # 'stroke': 'url(#linehighlight)',
+                'stroke-width': width}))
+
+
+    def add_vector(self, pos_from, pos_to, color, width):
+        pos_from = np.array([*pos_from, 1]) @ self.model_to_projected
+        pos_to = np.array([*pos_to, 1]) @ self.model_to_projected
+        length = np.linalg.norm(pos_to - pos_from)
+        dir = (pos_to - pos_from) / length
+        pos_to = pos_from + dir * length * 0.98
+        self.elements.append((
+            'line', max(pos_from[2], pos_to[2]) - 100, {
+                'x1': pos_from[0],
+                'y1': -pos_from[1],
+                'x2': pos_to[0],
+                'y2': -pos_to[1],
+                'marker-end': 'url(#VectorArrow)',
+                'stroke': color,
                 'stroke-width': width}))
 
 
@@ -224,6 +248,135 @@ def build_wz_structure():
     return atom_gas, atom_ass, outline_ends, bind_ends
 
 
+def build_sc_structure():
+    a = 4
+    atoms = [
+        (    0,     0,     0),
+        (    a,     0,     0),
+        (    0,     a,     0),
+        (    0,     0,     a),
+        (    a,     a,     0),
+        (    a,     0,     a),
+        (    0,     a,     a),
+        (    a,     a,     a),
+    ]
+
+    outline_ends = [
+        ((0, 0, 0), (a, 0, 0)),
+        ((0, 0, 0), (0, a, 0)),
+        ((0, 0, 0), (0, 0, a)),
+        ((a, 0, a), (a, 0, 0)),
+        ((a, 0, a), (0, 0, a)),
+        ((a, 0, a), (a, a, a)),
+        ((a, a, 0), (a, 0, 0)),
+        ((a, a, 0), (0, a, 0)),
+        ((a, a, 0), (a, a, a)),
+        ((0, a, a), (a, a, a)),
+        ((0, a, a), (0, a, 0)),
+        ((0, a, a), (0, 0, a)),
+    ]
+    return atoms, outline_ends
+
+
+def build_fcc_structure():
+    a = 4
+    atoms = [
+        (    0,     0,     0),
+        (    a,     0,     0),
+        (    0,     a,     0),
+        (    0,     0,     a),
+        (    a,     a,     0),
+        (    a,     0,     a),
+        (    0,     a,     a),
+        (    a,     a,     a),
+        (0.5*a, 0.5*a,     0),
+        (0.5*a,     0, 0.5*a),
+        (0,     0.5*a, 0.5*a),
+        (0.5*a, 0.5*a,     a),
+        (0.5*a,     a, 0.5*a),
+        (a,     0.5*a, 0.5*a),
+    ]
+
+    outline_ends = [
+        ((0, 0, 0), (a, 0, 0)),
+        ((0, 0, 0), (0, a, 0)),
+        ((0, 0, 0), (0, 0, a)),
+        ((a, 0, a), (a, 0, 0)),
+        ((a, 0, a), (0, 0, a)),
+        ((a, 0, a), (a, a, a)),
+        ((a, a, 0), (a, 0, 0)),
+        ((a, a, 0), (0, a, 0)),
+        ((a, a, 0), (a, a, a)),
+        ((0, a, a), (a, a, a)),
+        ((0, a, a), (0, a, 0)),
+        ((0, a, a), (0, 0, a)),
+    ]
+
+    vectors = [
+        ((a, a, 0), (0, 0, a))
+    ]
+
+    return atoms, outline_ends, vectors
+
+
+def build_bcc_structure():
+    a = 4
+    atoms = [
+        (    0,     0,     0),
+        (    a,     0,     0),
+        (    0,     a,     0),
+        (    0,     0,     a),
+        (    a,     a,     0),
+        (    a,     0,     a),
+        (    0,     a,     a),
+        (    a,     a,     a),
+        (0.5*a, 0.5*a, 0.5*a),
+    ]
+
+    outline_ends = [
+        ((0, 0, 0), (a, 0, 0)),
+        ((0, 0, 0), (0, a, 0)),
+        ((0, 0, 0), (0, 0, a)),
+        ((a, 0, a), (a, 0, 0)),
+        ((a, 0, a), (0, 0, a)),
+        ((a, 0, a), (a, a, a)),
+        ((a, a, 0), (a, 0, 0)),
+        ((a, a, 0), (0, a, 0)),
+        ((a, a, 0), (a, a, a)),
+        ((0, a, a), (a, a, a)),
+        ((0, a, a), (0, a, 0)),
+        ((0, a, a), (0, 0, a)),
+    ]
+
+    return atoms, outline_ends
+
+
+def build_hcp_structure():
+    a = 4
+    c = 7
+    sixth_rot = 2*np.pi/6
+    c_rot_sixth = np.array([
+        [math.cos(sixth_rot), -math.sin(sixth_rot), 0],
+        [math.sin(sixth_rot), math.cos(sixth_rot), 0],
+        [0,0,1]])
+    atoms = [np.array((0, 0, 0)), np.array((a, 0, 0))]
+    for i in range(1, 6):
+        atoms.append(np.dot(c_rot_sixth, atoms[i]))
+    atoms += [pos + (0, 0, c) for pos in atoms]
+
+    outline_ends = []
+    for i in range(1, 7):
+        outline_ends.append((atoms[i], atoms[(i % 6) + 1]))
+        outline_ends.append((atoms[i], atoms[6 + (i % 7) + 1]))
+        outline_ends.append((atoms[7 + i], atoms[7 + (i % 6) + 1]))
+
+    vectors = [
+        ((0, 0, 0), (0, 0, c))
+    ]
+
+    return atoms, outline_ends, vectors
+
+
 def create_structure(sphere_data, line_data):
     fig = VectorFigure3d(fov=100, camera_position=np.array((50.0, 20.0, 10.0)))
     for atom_list, radius, name in sphere_data:
@@ -239,7 +392,7 @@ def create_structure(sphere_data, line_data):
 
 def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
     line_outline_width = 0.03
-    line_outline_color = '#000000'
+    line_outline_color = '#444444'
     line_bind_width = 0.1
     line_bind_color = '#555555'
     r_Ga = 1.5
@@ -257,11 +410,41 @@ def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
     return create_structure(sphere_data, line_data)
 
 
+def create_single_atom_structure(atoms, outline_ends, vectors=[]):
+    line_outline_width = 0.03
+    line_outline_color = '#444444'
+    line_vector_width = 0.05
+    line_vector_color = '#000000'
+    r = 1.5
+
+    sphere_data = [
+        (atoms, r, 'A')
+    ]
+
+    line_data = [
+        (outline_ends, line_outline_color, line_outline_width),
+    ]
+    fig = create_structure(sphere_data, line_data)
+    for vector in vectors:
+        fig.add_vector(*vector, line_vector_color, line_vector_width)
+    return fig
+
+
 if __name__ == '__main__':
-    if sys.argv[1] == 'zb':
+    structure = sys.argv[1]
+    filename = sys.argv[2]
+    if structure == 'zb':
         fig = create_GaAs_structure(*build_zb_structure())
-    elif sys.argv[1] == 'wz':
+    elif structure == 'wz':
         fig = create_GaAs_structure(*build_wz_structure())
+    elif structure == 'sc':
+        fig = create_single_atom_structure(*build_sc_structure())
+    elif structure == 'fcc':
+        fig = create_single_atom_structure(*build_fcc_structure())
+    elif structure == 'bcc':
+        fig = create_single_atom_structure(*build_bcc_structure())
+    elif structure == 'hcp':
+        fig = create_single_atom_structure(*build_hcp_structure())
 
     fig.write(sys.argv[2])
 
