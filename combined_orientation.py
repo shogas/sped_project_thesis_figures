@@ -52,6 +52,8 @@ def combine_orientations(result_directory):
             method.strip() for method in parameters['methods'].split(',')
             if parameters['__save_method_{}'.format(method.strip())] == 'object']
 
+    nav_scale_x = parameters['nav_scale_x']
+
     object_infos = result_object_file_info(result_directory)
     if 'template_match' in object_infos:
         indexation_results = combine_indexation_results(object_infos['template_match'])
@@ -60,30 +62,40 @@ def combine_orientations(result_directory):
         crystal_map.save_mtex_map(os.path.join(result_directory, 'mtex_test.csv'))
         phase_map = crystal_map.get_phase_map()
         orientation_map = crystal_map.get_orientation_map()
-
-        phase_map.metadata.General.title = 'Phase map'
-        phase_map.axes_manager.signal_axes[0].name = '$x$'
-        phase_map.axes_manager.signal_axes[1].name = '$y$'
-        orientation_map.axes_manager.signal_axes[0].name = '$x$'
-        orientation_map.axes_manager.signal_axes[1].name = '$y$'
-
-        nav_scale_x = parameters['nav_scale_x']
+        reliability_phase_map = crystal_map.get_reliability_map_phase()
+        reliability_orientation_map = crystal_map.get_reliability_map_orientation()
         nav_width = phase_map.data.shape[1]
+
+        middle_slice = slice(int(0.25*nav_width), int(0.75*nav_width))
+        phase_map.data *= 255.0 / phase_map.data.max()
+        # reliability_orientation_map.data *= 255.0 / reliability_orientation_map.data[:, middle_slice].max()
+        # reliability_phase_map.data *= 255.0 / reliability_phase_map.data[:, middle_slice].max()
+        reliability_orientation_map.data *= 255.0 / 0.6
+        reliability_phase_map.data *= 255.0 / reliability_phase_map.data[:, middle_slice].max()
+
         save_figure(
                 os.path.join(result_directory, 'phase_map.tex'),
                 TikzImage(phase_map.data.astype('uint8')),
                 TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
+        save_figure(
+                os.path.join(result_directory, 'reliability_orientation_map.tex'),
+                TikzImage(reliability_orientation_map.data.astype('uint8')),
+                TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
+        save_figure(
+                os.path.join(result_directory, 'reliability_phase_map.tex'),
+                TikzImage(reliability_phase_map.data.astype('uint8')),
+                TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
 
         save_figure(
                 os.path.join(result_directory, 'orientation_map_zb.tex'),
-                TikzImage('orientation_map_zb.pdf'))
+                TikzImage('orientation_map_zb.png'))
         save_figure(
                 os.path.join(result_directory, 'orientation_map_color_zb.tex'),
                 TikzImage('orientation_map_color_zb.pdf'))
 
         save_figure(
                 os.path.join(result_directory, 'orientation_map_wz.tex'),
-                TikzImage('orientation_map_wz.pdf'))
+                TikzImage('orientation_map_wz.png'))
         save_figure(
                 os.path.join(result_directory, 'orientation_map_color_wz.tex'),
                 TikzImage('orientation_map_color_wz.pdf'))
