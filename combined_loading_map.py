@@ -60,10 +60,18 @@ def classify_compare_l2_norm(parameters, factor, known_factors):
     return factor_index
 
 
-def classify_l2_norm(parameters, factor, known_factors):
+def classify_l2_norm_normal(parameters, factor, known_factors):
+    return classify_l2_norm(parameters, factor, known_factors, image_l2_norm)
+
+
+def classify_l2_norm_fourier(parameters, factor, known_factors):
+    return classify_l2_norm(parameters, factor, known_factors, image_l2_norm_fft)
+
+
+def classify_l2_norm(parameters, factor, known_factors, norm_func):
     threshold = parameters['classify_l2_norm_threshold']
     if len(known_factors) > 0:
-        diffs = [image_l2_norm_fft(factor, known_factor) for known_factor in known_factors]
+        diffs = [norm_func(factor, known_factor) for known_factor in known_factors]
         best_diff_index = np.argmin(diffs)
         best_diff = diffs[best_diff_index]
         if (best_diff < threshold):
@@ -196,20 +204,22 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
     return combined_loadings.astype('uint8'), factors
 
 
-def combine_loading_maps(parameters, result_directory, classification_method):
+def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
+    shortname = parameters['shortname']
     methods = [
             method.strip() for method in parameters['methods'].split(',')
             if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
     factor_infos = result_image_file_info(result_directory, 'factors')
     loading_infos = result_image_file_info(result_directory, 'loadings')
     classify = {
-        'l2_norm': classify_l2_norm,
+        'l2_norm': classify_l2_norm_normal,
+        'l2_norm_fourier': classify_l2_norm_fourier,
         'l2_norm_compare': classify_compare_l2_norm,
         'template_match': classify_template_match,
     }[classification_method]
-    allfactors = {}
-    allfactor_weights = {}
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
+        allfactors = {}
+        allfactor_weights = {}
         combined_loadings, factors = combine_loading_map(
                 parameters,
                 method_name,
@@ -225,17 +235,19 @@ def combine_loading_maps(parameters, result_directory, classification_method):
 
         nav_width = combined_loadings.data.shape[1]
         save_figure(
-                os.path.join(result_directory, 'loading_map_{}.tex'.format(method_name)),
-                TikzImage(combined_loadings),
-                TikzScalebar(100, parameters['nav_scale_x']*nav_width, r'\SI{100}{\nm}'))
+                os.path.join(result_directory, 'loading_map_{}_{}.tex'.format(shortname, method_name)),
+                TikzImage(combined_loadings, rotation),
+                TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)))
 
-    for (factor_index, factor_list), factor_weights in zip(allfactors.items(), allfactor_weights.values()):
-        print(factor_weights)
-        factor_average = np.average(factor_list, weights=factor_weights, axis=0)
-        factor_average *= 255.0 / factor_average.max()
-        save_figure(
-                os.path.join(result_directory, 'factor_average_{}_{}.tex'.format(method_name, factor_index)),
-                TikzImage(factor_average.astype('uint8')))
+        for (factor_index, factor_list), factor_weights in zip(allfactors.items(), allfactor_weights.values()):
+            if np.sum(factor_weights) == 0:
+                factor_average = factor_list[0]
+            else:
+                factor_average = np.average(factor_list, weights=factor_weights, axis=0)
+                factor_average *= 255.0 / factor_average.max()
+            save_figure(
+                    os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
+                    TikzImage(factor_average.astype('uint8')))
 
 
 if __name__ == '__main__':
@@ -244,4 +256,6 @@ if __name__ == '__main__':
     classification_method = sys.argv[2] if len(sys.argv) > 2 else 'l2_norm'
     parameters = parameters_parse(os.path.join(result_directory, 'metadata.txt'))
     parameters['classify_l2_norm_threshold'] = float(sys.argv[3]) if len(sys.argv) > 3 else 5
-    combine_loading_maps(parameters, result_directory, classification_method)
+    scalebar_nm = int(sys.argv[4]) if len(sys.argv) > 4 else 100
+    rotation = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+    combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation)
