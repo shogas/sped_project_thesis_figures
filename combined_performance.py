@@ -54,7 +54,7 @@ def load_data(dir_glob, key_columns):
         time_df = pandas.read_csv(
                 time_filename,
                 sep='\t',
-                names=['timestamp', 'method', 'library_size', 'elapsed'],
+                names=['timestamp', *key_columns, 'elapsed'],
                 converters={'timestamp': parse_timestamp})
         mem_df = pandas.read_csv(
                 mem_filename,
@@ -69,6 +69,8 @@ def load_data(dir_glob, key_columns):
             mem_peaks[i] = mem_df.where(
                     mem_df.timestamp >= (row.timestamp - row.elapsed_delta)
                 ).where(mem_df.timestamp <= row.timestamp).max().bytes
+            if mem_peaks[i] < 0 and i > 0:
+                mem_peaks[i] = mem_peaks[i - 1]
 
         time_df = time_df.assign(mem_peak=mem_peaks)
         perf_dfs.append(time_df)
@@ -86,13 +88,30 @@ def source_aggregate_correlate(mean, std):
     elapsed_stds = propagate_std_div(mean_old.elapsed, std_old.elapsed, mean_new.elapsed, std_new.elapsed)
     memory_means = mean_new.mem_peak
     memory_stds = std_new.mem_peak
-    return [elapsed_means], [elapsed_stds], memory_means, memory_stds, ['Relative time']
+    return np.array([elapsed_means]),\
+            np.array([elapsed_stds]),\
+            np.array([memory_means]),\
+            np.array([memory_stds]),\
+            ['Relative time']
 
 
 def source_aggregate_split_nmf(mean, std):
-    print(mean.index)
-    exit(0)
-    return mean.elapsed, std.elapsed, mean.mem_peak, std.mem_peak, ['{} components'.format(a) for a in range(1)]
+    elapsed_means = []
+    elapsed_stds = []
+    memory_means = []
+    memory_stds = []
+    legends = []
+    for component_count in mean.index.levels[0]:
+        elapsed_means.append(mean.elapsed[component_count])
+        elapsed_stds.append(std.elapsed[component_count])
+        memory_means.append(mean.mem_peak[component_count])
+        memory_stds.append(std.mem_peak[component_count])
+        legends.append('{} components'.format(component_count))
+    return np.array(elapsed_means),\
+            np.array(elapsed_stds),\
+            np.array(memory_means),\
+            np.array(memory_stds),\
+            legends
 
 
 def combine_performance(source, result_directory):
@@ -118,35 +137,58 @@ def combine_performance(source, result_directory):
     mean = perf_grouped.mean()
     std = perf_grouped.std()
 
-    x_axis_labels = perf_df[key_columns[1]].unique()
     elapsed_means, elapsed_stds, memory_means, memory_stds, legends = source_aggregate(mean, std)
+    x_axis_labels = mean.index.levels[1]
 
     axis_styles = {
         'legend_pos': 'north west',
         'axis_x_line': 'bottom',
         'axis_y_line': 'left',
         'xmin': 0,
+        'ymin': 0,
+        'width': r'\textwidth',
         'enlargelimits': 'upper',
         'grid': 'both'
     }
     line_styles = {
-        'color': 'MaterialBlue',
         'mark': '*',
-        'mark_options': '{fill=MaterialBlue, scale=0.75}',
         'line_width': '1.5pt'
     }
+    colors = [
+        'MaterialBlue',
+        'MaterialDeepOrange',
+        'MaterialGreen',
+        'MaterialRed',
+        'MaterialPurple',
+        'MaterialBrown',
+        'MaterialPink',
+        'MaterialGray',
+        'MaterialBeige',
+        'MaterialCyan',
+    ]
 
-    memory_stds /= 1000000
-    perf_elements = []
-    for y_mean, y_std, legend in zip(elapsed_means, elapsed_stds, legends):
-        # print(y_mean, y_std, legend)
-        perf_elements.append(TikzTablePlot(x_axis_labels, y_mean, y_std, **line_styles))
-        perf_elements.append(TikzLegend(legend))
+    memory_means /= 1000000000
+    memory_stds /=  1000000000
+    elapsed_elements = []
+    mem_elements = []
+    for i, (elapsed_mean, elapsed_std, memory_mean, memory_std, legend) in enumerate(zip(
+        elapsed_means, elapsed_stds, memory_means, memory_stds, legends)):
+        color = colors[i % len(colors)]
+        styles = {
+            **line_styles,
+            'color': color,
+            'mark_options': '{{fill={}, scale=0.75}}'.format(color)}
+        elapsed_elements.append(TikzTablePlot(
+            x_axis_labels, elapsed_mean, elapsed_std, **styles))
+        elapsed_elements.append(TikzLegend(legend))
+        mem_elements.append(TikzTablePlot(
+            x_axis_labels, memory_mean, memory_std, **styles))
+        mem_elements.append(TikzLegend(legend))
 
     save_figure(
             os.path.join(result_directory, 'performance_time.tex'),
             TikzAxis(
-                *perf_elements,
+                *elapsed_elements,
                 xlabel=x_label,
                 ylabel=y_label,
                 **axis_styles))
@@ -154,11 +196,11 @@ def combine_performance(source, result_directory):
     save_figure(
             os.path.join(result_directory, 'performance_memory.tex'),
             TikzAxis(
-                TikzTablePlot(x_axis_labels, memory_means, memory_stds, **line_styles),
-                TikzLegend('Memory'),
+                *mem_elements,
                 xlabel=x_label,
-                ylabel='{Memory/MB}',
-                **axis_styles))
+                ylabel='{Memory/GB}',
+                **axis_styles,
+                ymax=4))
 
 
 if __name__ == '__main__':
