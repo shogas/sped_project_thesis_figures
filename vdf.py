@@ -41,7 +41,7 @@ def vdf(parameters):
         os.makedirs(output_dir)
 
     vdf_rois = {}
-    vdf_parameter_regex = re.compile(r'(?P<dp_x>\S*) (?P<dp_y>\S*) (?P<cx>\S*) (?P<cy>\S*) (?P<r>\S*) (?P<filename>.*)$')
+    vdf_parameter_regex = re.compile(r'(?P<dp_x>\S*)\s+(?P<dp_y>\S*)\s+(?P<cx>\S*)\s+(?P<cy>\S*)\s+(?P<r>\S*)\s+(?P<rot>\S*)\s+(?P<filename>.*)$')
     for name, value in parameters.items():
         if name.startswith('vdf_'):
             match = vdf_parameter_regex.match(value)
@@ -55,6 +55,7 @@ def vdf(parameters):
                 'r': float(match.group('r')),
                 'dp_x': int(match.group('dp_x')),
                 'dp_y': int(match.group('dp_y')),
+                'rot': int(match.group('rot')),
             })
 
     for filename, rois in vdf_rois.items():
@@ -69,7 +70,7 @@ def vdf(parameters):
             nav_height, nav_width, sig_height, sig_width = s.data.shape
             save_figure(
                     os.path.join(output_dir, 'vdf_{}.tex'.format(desc['name'])),
-                    TikzImage(vdf.astype('uint8')),
+                    TikzImage(vdf.astype('uint8'), angle=desc['rot']),
                     TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
             save_figure(
                 os.path.join(output_dir, 'vdf_{}_dp.tex'.format(desc['name'])),
