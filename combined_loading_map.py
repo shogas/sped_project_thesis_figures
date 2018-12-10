@@ -180,11 +180,12 @@ def classify_template_match(parameters, factor, known_factors):
     return factor_index
 
 
-def combine_loading_map(parameters, method, factor_infos, loading_infos, classify):
+def combine_loading_map(parameters, method, factor_infos, loading_infos, classify, experimental):
     total_width  = max((info['x_stop'] for info in loading_infos))
     total_height = max((info['y_stop'] for info in loading_infos))
 
     combined_loadings = np.zeros((total_height, total_width, 3))
+    reconstruction = np.empty((total_width, total_height, *experimental.data.shape[2:4]))
 
     colors = np.array([
             [1, 0, 0], # Red
@@ -193,7 +194,6 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             [1, 1, 0], # Yellow
             [1, 0, 1], # Magenta
             [0, 1, 1], # Cyan
-            [1, 1, 1], # White
             [0.5, 0, 0],
             [0, 0.5, 0],
             [0, 0, 0.5],
@@ -212,23 +212,64 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         if tile != last_tile:
             report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
             last_tile = tile
-        factor = np.asarray(Image.open(factor_info['filename'])).astype('float')
-        factor_max = factor.max() or 1
-        factor *= 1/factor_max
 
-        factor_index = classify(parameters, factor.copy * (1/factor_max), known_factors)
+        factor  = np.load(factor_info['filename'].replace('tiff', 'npy'))
+        loading = np.load(loading_info['filename'].replace('tiff', 'npy'))
+        reconstruction += np.outer(
+                loading.ravel(),
+                factor.ravel()).reshape(
+                        *loading.shape, *factor.shape)
+
+        factor_max = factor.max() or 1
+
+        factor_index = classify(parameters, factor.copy() * (1/factor_max), known_factors)
         report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
 
-        loading = np.asarray(Image.open(loading_info['filename']))
+        x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
+        y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
         color = colors[factor_index % len(colors)]
-        combined_loadings[
-                factor_info['y_start']:factor_info['y_stop'],
-                factor_info['x_start']:factor_info['x_stop']] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
+        combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
         pixel_count = np.count_nonzero(loading[loading > 10])
+
         factors.append((factor_index, factor, pixel_count))
 
+
+    reconstruction_error = np.abs(experimental.data - reconstruction)
+    error = np.sum(reconstruction_error, axis=(2, 3))
+    report_progress.write('    Max error: {}'.format(error.max()))
+
     combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors
+    return combined_loadings.astype('uint8'), factors, error
+
+
+def preprocessor_affine_transform(data, parameters):
+    # TODO(simonhog): What is the cost of wrapping in ElectronDiffraction?
+    signal = pxm.ElectronDiffraction(data)
+    scale_x = parameters['scale_x']
+    scale_y = parameters['scale_y']
+    offset_x = parameters['offset_x']
+    offset_y = parameters['offset_y']
+    signal.apply_affine_transformation(np.array([
+            [scale_x, 0, offset_x],
+            [0, scale_y, offset_y],
+            [0, 0, 1]
+        ]))
+    return signal.data
+
+
+def preprocessor_gaussian_difference(data, parameters):
+    # TODO(simonhog): Does this copy the data? Hopefully not
+    signal = pxm.ElectronDiffraction(data)
+    sig_width = signal.axes_manager.signal_shape[0]
+    sig_height = signal.axes_manager.signal_shape[1]
+
+    signal = signal.remove_background(
+            'gaussian_difference',
+            sigma_min=parameters['gaussian_sigma_min'],
+            sigma_max=parameters['gaussian_sigma_max'])
+    signal.data /= signal.data.max()
+
+    return signal.data
 
 
 def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
@@ -239,21 +280,31 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
             if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
     factor_infos = result_image_file_info(result_directory, 'factors')
     loading_infos = result_image_file_info(result_directory, 'loadings')
+
     classify = {
         'l2_norm': classify_l2_norm_normal,
         'l2_norm_fourier': classify_l2_norm_fourier,
         'l2_norm_compare': classify_compare_l2_norm,
         'template_match': classify_template_match,
     }[classification_method]
+
+    experimental_data = hs.load(parameters['sample_file'], lazy=True)
+    # TODO: Lazy
+    experimental_data = preprocessor_gaussian_difference(
+            preprocessor_affine_transform(
+                experimental_data.data.compute(), parameters),
+            parameters)
+
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
-        combined_loadings, factors = combine_loading_map(
+        combined_loadings, factors, error = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
                 loading_infos_for_method,
-                classify)
+                classify,
+                experimental_data)
         for factor_index, factor, count in factors:
             if factor_index not in allfactors:
                 allfactors[factor_index] = []
@@ -278,6 +329,13 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
                     os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
                     TikzImage(factor_average.astype('uint8')))
 
+
+        error_max = error.max()
+        print(error_max)
+        error *= 255.0/error_max if error_max > 0 else 1
+        save_figure(
+                os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
+                TikzImage(error.astype('uint8')))
 
 if __name__ == '__main__':
     hs.preferences.General.nb_progressbar = False
