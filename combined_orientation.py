@@ -68,10 +68,11 @@ def combine_orientations(result_directory):
 
         middle_slice = slice(int(0.25*nav_width), int(0.75*nav_width))
         phase_map.data *= 255.0 / phase_map.data.max()
+        np.clip(phase_map.data, 0, 255.0, out=phase_map.data)
         # reliability_orientation_map.data *= 255.0 / reliability_orientation_map.data[:, middle_slice].max()
         # reliability_phase_map.data *= 255.0 / reliability_phase_map.data[:, middle_slice].max()
         reliability_orientation_map.data *= 255.0 / 0.6
-        reliability_phase_map.data *= 255.0 / reliability_phase_map.data[:, middle_slice].max()
+        reliability_phase_map.data *= 255.0 / reliability_phase_map.data.max()
 
         save_figure(
                 os.path.join(result_directory, 'phase_map.tex'),
