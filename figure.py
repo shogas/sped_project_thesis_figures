@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 from PIL import Image
 
 
@@ -59,23 +60,63 @@ class TikzImage(TikzElement):
 
 
 class TikzCircle(TikzElement):
-    def __init__(self, cx, cy, r, draw_properties):
+    def __init__(self, cx, cy, r, draw_properties, transform=np.identity(2), text=None, text_properties=''):
         self.cx = cx
         self.cy = cy
         self.r = r
+        self.transform = transform
         self.props = draw_properties
+        self.text = text
+        self.text_properties = text_properties
 
 
     def write(self, figure_filename, last_shape):
-        rel_x = self.cx / (0.5*last_shape[0]) - 1
-        rel_y = self.cy / (0.5*last_shape[1]) - 1
+        pos = self.transform @ np.array([
+            self.cx / (0.5*last_shape[1]) - 1,
+            self.cy / (0.5*last_shape[0]) - 1])
         rel_r = self.r / (0.5*last_shape[0])
+        if self.text is not None:
+            node = '  node [{}] {{{}}}'.format(self.text_properties, self.text)
+        else:
+            node = ''
         return r"""\draw[{}] let
     \p1 = ($(img)!{}!(img.east)$),
     \p2 = ($(img)!{}!(img.north)$),
     \p3 = ($(img.east) - (img.west)$)
-    in (\x1, \y2) circle ({{veclen(\x3,\y3)*{}}});
-""".format(self.props, rel_x, rel_y, rel_r)
+    in (\x1, \y2) circle ({{veclen(\x3,\y3)*{}}}){};
+""".format(self.props, *pos, rel_r, node)
+
+
+class TikzRectangle(TikzElement):
+    def __init__(self, x1, y1, x2, y2, draw_properties, transform=np.identity(2), text=None, text_properties=''):
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+        self.transform = transform
+        self.props = draw_properties
+        self.text = text
+        self.text_properties = text_properties
+
+
+    def write(self, figure_filename, last_shape):
+        rel_a = self.transform @ np.array([
+            self.x1 / (0.5*last_shape[1]) - 1,
+            self.y1 / (0.5*last_shape[0]) - 1])
+        rel_b = self.transform @ np.array([
+            self.x2 / (0.5*last_shape[1]) - 1,
+            self.y2 / (0.5*last_shape[0]) - 1])
+        if self.text is not None:
+            node = '  node [{}] {{{}}}'.format(self.text_properties, self.text)
+        else:
+            node = ''
+        return r"""\draw[{}] let
+    \p1 = ($(img)!{}!(img.east)$),
+    \p2 = ($(img)!{}!(img.north)$),
+    \p3 = ($(img)!{}!(img.east)$),
+    \p4 = ($(img)!{}!(img.north)$)
+    in (\x1, \y2) rectangle (\x3, \y4){};
+""".format(self.props, *rel_a, *rel_b, node)
 
 
 class TikzScalebar(TikzElement):
