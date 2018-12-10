@@ -7,7 +7,7 @@ def get_projection(near, far, fov):
     n = near
     f = far
     fov = np.deg2rad(fov)
-    a = - f/(f-n)
+    a = - (n+f)/(f-n)
     b = - 2 * f*n/(f-n)
     s = 1/(np.tan(0.5*fov))
     return np.array([
@@ -17,23 +17,58 @@ def get_projection(near, far, fov):
         [  0,  0, -1,  0]])
 
 
-def lookat(pos_from, pos_to):
+def rotation_matrix(axis, theta):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+    """
+    axis = np.asarray(axis)
+    axis = axis / math.sqrt(np.dot(axis, axis))
+    a = math.cos(theta / 2.0)
+    b, c, d = -axis * math.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac), 0],
+                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab), 0],
+                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc, 0],
+                     [0, 0, 0, 1]])
+
+
+def rotation_matrix_x(theta):
+    return np.array([
+        [math.cos(theta), -math.sin(theta), 0],
+        [math.sin(theta),  math.cos(theta), 0],
+        [0,0,1]])
+
+
+def lookat(pos_from, pos_to, up=np.array([0.0, 0.0, 1.0]), roll=0):
     forward = np.array(pos_from) - np.array(pos_to)
     forward /= np.linalg.norm(forward)
-    right = np.cross([0, 0, 1], forward) 
+    up /= np.linalg.norm(up)
+    right = np.cross(up, forward)
     if np.allclose(right, 0):
+        print('ERROR: lookat, up || forward')
         right = np.cross([0, 1, 0], forward) 
+
     up = np.cross(forward, right)
 
-    return np.array([
-        [ *right,    0 ],
-        [ *up,       0 ],
-        [ *forward,  0 ],
+    a = -np.dot(right, pos_from)
+    b = -np.dot(up, pos_from)
+    c = -np.dot(forward, pos_from)
+    look_matrix = np.array([
+        [ *right,    a ],
+        [ *up,       b ],
+        [ *forward,  c ],
         [ *pos_from, 1 ]]).T
+    if roll == 0:
+        return look_matrix
+    roll_matrix = rotation_matrix(forward, roll);
+
+    return roll_matrix @ look_matrix
 
 
 class VectorFigure3d:
-    def __init__(self, fov, camera_position):
+    def __init__(self, fov, camera_position, roll):
         self.fov = fov
         self.camera_position = camera_position
         self.elements = []
@@ -42,7 +77,7 @@ class VectorFigure3d:
             [ 0, 1, 0,   0 ],
             [ 0, 0, 1,   0 ],
             [ 0, 0, 0,   1 ]])
-        self.world_to_camera = lookat(camera_position, (0, 0, 0))
+        self.world_to_camera = lookat(camera_position, (0, 0, 0), roll=roll)
         self.camera_to_projected = get_projection(near=1, far=10000, fov=fov)
         self.model_to_projected = self.model_to_world @ self.world_to_camera @ self.camera_to_projected
 
@@ -52,7 +87,7 @@ class VectorFigure3d:
         svg = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" version="2.0"
-      width="1920" height="900" viewBox="-2 -7 12 10">
+      width="1920" height="900" viewBox="0 -1 1.5 1.5">
     <defs>
         <radialGradient id="Ahighlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
             <stop offset="0%"   stop-color="#55ff55" />
@@ -71,10 +106,10 @@ class VectorFigure3d:
             <stop offset="0.5" stop-color="#999999" />
             <stop offset="1"   stop-color="#424242" />
         </linearGradient>
-    </defs>
     <marker id="VectorArrow" markerUnits="strokeWidth" markerWidth="10" orient="auto" markerHeight="10" refY="2" refX="3.7">
       <path d="M0,0 L0,4 L5,2 z"/>
     </marker>
+    </defs>
 """
         self.elements.sort(key=lambda element: -element[1])
         for name, z, attributes in self.elements:
@@ -86,23 +121,31 @@ class VectorFigure3d:
             f.write(svg)
 
 
+    def pos_to_camera(self, pos):
+        pos = np.array(pos) @ self.model_to_projected
+        resolution = 10  # Conversion factor between unit clipspace and view space
+        scale = resolution / (pos[3] if pos[3] != 0 else 1)
+        pos *= scale
+        return pos
+
+
     def add_sphere(self, x, y, z, r, atom_type):
-        pos = np.array([x, y, z, 1]) @ self.model_to_projected
-        scale = pos[3] if pos[3] != 0 else 1
+        pos = self.pos_to_camera([x, y, z, 1])
         camera_distance = abs(np.linalg.norm(np.array([x, y, z] - self.camera_position)))
-        radius = 15.0 / np.tan(np.deg2rad(0.5*self.fov)) * r / np.sqrt(camera_distance**2 - r**2)
+        radius = 5.0 / np.tan(np.deg2rad(0.5*self.fov)) * r / np.sqrt(camera_distance**2 - r**2)
         self.elements.append((
             'circle', pos[2], {
                 'cx': pos[0],
                 'cy': -pos[1],
-                'r': radius,  #r/np.sqrt(abs(scale)),
-                # 'opacity': '0.6',
+                'r': radius,
                 'fill': 'url(#{}highlight)'.format(atom_type)}))
 
 
     def add_line(self, pos_from, pos_to, color, width):
-        pos_from = np.array([*pos_from, 1]) @ self.model_to_projected
-        pos_to = np.array([*pos_to, 1]) @ self.model_to_projected
+        camera_distance = abs(np.linalg.norm(pos_from - self.camera_position))
+        pos_from = self.pos_to_camera([*pos_from, 1])
+        pos_to = self.pos_to_camera([*pos_to, 1])
+        width = 7 / np.tan(np.deg2rad(0.5*self.fov)) * width / np.sqrt(camera_distance**2 - width**2)
         self.elements.append((
             'line', max(pos_from[2], pos_to[2]) + 1, {
                 'x1': pos_from[0],
@@ -115,11 +158,13 @@ class VectorFigure3d:
 
 
     def add_vector(self, pos_from, pos_to, color, width):
-        pos_from = np.array([*pos_from, 1]) @ self.model_to_projected
-        pos_to = np.array([*pos_to, 1]) @ self.model_to_projected
+        camera_distance = abs(np.linalg.norm(pos_from - self.camera_position))
+        pos_from = self.pos_to_camera([*pos_from, 1])
+        pos_to = self.pos_to_camera([*pos_to, 1])
         length = np.linalg.norm(pos_to - pos_from)
         dir = (pos_to - pos_from) / length
-        pos_to = pos_from + dir * length * 0.98
+        pos_to = pos_from + dir * length * 0.98  # Give space for marker
+        width = 7 / np.tan(np.deg2rad(0.5*self.fov)) * width / np.sqrt(camera_distance**2 - width**2)
         self.elements.append((
             'line', max(pos_from[2], pos_to[2]) - 100, {
                 'x1': pos_from[0],
@@ -197,10 +242,7 @@ def build_wz_structure():
     a = 4.053
     c = 6.680
     third_rot = 2*np.pi/3
-    c_rot_third = np.array([
-        [math.cos(third_rot), -math.sin(third_rot), 0],
-        [math.sin(third_rot), math.cos(third_rot), 0],
-        [0,0,1]]) 
+    c_rot_third = rotation_matrix_x(2*np.pi/3)
     corner_a = np.array((0, 0, 0))
     corner_b = np.array((a, 0, 0))
     corner_c = np.dot(c_rot_third, corner_b)
@@ -377,8 +419,11 @@ def build_hcp_structure():
     return atoms, outline_ends, vectors
 
 
-def create_structure(sphere_data, line_data):
-    fig = VectorFigure3d(fov=100, camera_position=np.array((50.0, 20.0, 10.0)))
+def create_structure(sphere_data, line_data, fov=100,
+        camera_position=np.array((50.0, 20.0, 10.0)), up=np.array((0.0 ,0.0, 1.0)),
+        # camera_position=np.array((0.0, -50.0, 0.0)), up=np.array((0.0 ,0.0, 1.0)),
+        roll=0):
+    fig = VectorFigure3d(fov=fov, camera_position=camera_position, roll=roll)
     for atom_list, radius, name in sphere_data:
         for x, y, z in atom_list:
             fig.add_sphere(x, y, z, radius, name)
@@ -390,13 +435,13 @@ def create_structure(sphere_data, line_data):
     return fig
 
 
-def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
+def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends, **kwargs):
     line_outline_width = 0.03
     line_outline_color = '#444444'
-    line_bind_width = 0.1
+    line_bind_width = 0.07
     line_bind_color = '#555555'
-    r_Ga = 1.5
-    r_As = 1.3
+    r_Ga = 0.4
+    r_As = 0.3
 
     sphere_data = [
         (atom_gas, r_Ga, 'Ga'),
@@ -407,15 +452,15 @@ def create_GaAs_structure(atom_gas, atom_ass, outline_ends, bind_ends):
         (outline_ends, line_outline_color, line_outline_width),
         (bind_ends, line_bind_color, line_bind_width)
     ]
-    return create_structure(sphere_data, line_data)
+    return create_structure(sphere_data, line_data, **kwargs)
 
 
 def create_single_atom_structure(atoms, outline_ends, vectors=[]):
     line_outline_width = 0.03
     line_outline_color = '#444444'
-    line_vector_width = 0.05
+    line_vector_width = 0.06
     line_vector_color = '#000000'
-    r = 1.5
+    r = 0.4
 
     sphere_data = [
         (atoms, r, 'A')
@@ -433,10 +478,31 @@ def create_single_atom_structure(atoms, outline_ends, vectors=[]):
 if __name__ == '__main__':
     structure = sys.argv[1]
     filename = sys.argv[2]
+    default_dist = np.linalg.norm((50.0, 20.0, 10.0))
     if structure == 'zb':
         fig = create_GaAs_structure(*build_zb_structure())
+    elif structure == 'zb_110':
+        cam_pos = np.array((50.0, 50.0, 0.0))
+        cam_pos *= default_dist / np.linalg.norm(cam_pos)
+        roll = np.arctan2(1, 1/np.sqrt(2))
+        fig = create_GaAs_structure(*build_zb_structure(), camera_position=cam_pos, roll=roll)
+    elif structure == 'zb_112':
+        cam_pos = np.array((40.0, 20.0, 20.0))
+        cam_pos /= 1
+        roll = np.pi - np.deg2rad(50.77)  # TODO: Where does this number come from?
+        fig = create_GaAs_structure(*build_zb_structure(), camera_position=cam_pos, roll=roll)
     elif structure == 'wz':
         fig = create_GaAs_structure(*build_wz_structure())
+    elif structure == 'wz_1120':
+        c_rot_third = rotation_matrix_x(2*np.pi/3)
+        corner_b = np.array((1, 0, 0))
+        corner_c = np.dot(c_rot_third, corner_b)
+        cam_pos = 50*(corner_b + corner_c)
+        fig = create_GaAs_structure(*build_wz_structure(), camera_position=cam_pos)
+    elif structure == 'wz_1010':
+        corner_b = np.array((4.053, 0, 0))
+        cam_pos = corner_b + 10*(rotation_matrix_x(-np.pi/6) @ corner_b)
+        fig = create_GaAs_structure(*build_wz_structure(), camera_position=cam_pos)
     elif structure == 'sc':
         fig = create_single_atom_structure(*build_sc_structure())
     elif structure == 'fcc':
