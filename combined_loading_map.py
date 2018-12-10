@@ -3,6 +3,7 @@ import sys
 
 import numpy as np
 from PIL import Image
+from skimage.transform import rotate as sk_rotate
 
 from tqdm import tqdm as report_progress
 
@@ -10,9 +11,14 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 
+import hyperspy.api as hs
 import pyxem as pxm
+from pyxem.generators.diffraction_generator import DiffractionGenerator
 from pyxem.generators.indexation_generator import IndexationGenerator
+from pyxem.generators.library_generator import DiffractionLibraryGenerator
 from pyxem.generators.structure_library_generator import StructureLibraryGenerator
+from pyxem.libraries.diffraction_library import load_DiffractionLibrary
+from diffpy.structure import loadStructure
 
 from common import result_image_file_info
 from parameters import parameters_parse
@@ -97,7 +103,13 @@ def classify_l2_norm(parameters, factor, known_factors, norm_func):
 
 
 # TODO(simonhog): From compare/methods/template_match
-def create_diffraction_library(parameters, half_pattern_size):
+def create_diffraction_library(parameters, pattern_size):
+    diffraction_library_cache_filename = os.path.join(
+            parameters['output_dir'],
+            'tmp/diffraction_library_{}.pickle'.format(parameters['shortname']))
+    if os.path.exists(diffraction_library_cache_filename):
+        return load_DiffractionLibrary(diffraction_library_cache_filename, safety=True)
+
     specimen_thickness = parameters['specimen_thickness']
     beam_energy_keV = parameters['beam_energy_keV']
     reciprocal_angstrom_per_pixel = parameters['reciprocal_angstrom_per_pixel']
@@ -119,6 +131,7 @@ def create_diffraction_library(parameters, half_pattern_size):
     max_excitation_error = 1/specimen_thickness
     gen = DiffractionGenerator(beam_energy_keV, max_excitation_error=max_excitation_error)
     library_generator = DiffractionLibraryGenerator(gen)
+    half_pattern_size = pattern_size // 2
     reciprocal_radius = reciprocal_angstrom_per_pixel*(half_pattern_size - 1)
 
     diffraction_library = library_generator.get_diffraction_library(
@@ -128,27 +141,41 @@ def create_diffraction_library(parameters, half_pattern_size):
         half_shape=(half_pattern_size, half_pattern_size),
         with_direct_beam=False)
 
+
+    diffraction_library.pickle_library(diffraction_library_cache_filename)
+
     return diffraction_library
 
 
 diffraction_library = None
 def classify_template_match(parameters, factor, known_factors):
+    phase_names = [phase_name.strip() for phase_name in parameters['phase_names'].split(',')]
     dp = pxm.ElectronDiffraction([[factor]])
+    global diffraction_library
     if diffraction_library is None:
         diffraction_library = create_diffraction_library(parameters, dp.data.shape[2])
     pattern_indexer = IndexationGenerator(dp, diffraction_library)
     indexation_results = pattern_indexer.correlate(n_largest=4, keys=phase_names, show_progressbar=False)
     crystal_mapping = indexation_results.get_crystallographic_map(show_progressbar=False)
     phases = crystal_mapping.get_phase_map().data.ravel()
-    orientations = crystal_mapping.get_orientation_map().data.ravel()
+    orientations = crystal_mapping.isig[1:4].data[0]  #crystal_mapping.get_orientation_map().data.ravel()
     for phase, orientation in zip(phases, orientations):
-        if (phase, orientation) in known_factors:
-            factor_index = known_factors.index((phase, orientation))
-            report_progress.write('    Matched phase {}, {}'.format(phase, orientation))
+        phase = int(phase)
+        factor_index = -1
+        for i, (key_phase, a, b, c) in enumerate(known_factors):
+            # TODO: Far to large bounds, but the matching is not good enough
+            if key_phase == phase and\
+                    abs(orientation[0] - a) < 15 and\
+                    abs(orientation[1] - b) < 15 and\
+                    abs(orientation[2] - c) < 15:
+                        factor_index = i
+                        break
+        if factor_index >= 0:
+            report_progress.write('    Matched phase {}, ori: {}, {}, {}'.format(phase, *orientation))
         else:
             factor_index = len(known_factors)
-            known_factors.append((phase, orientation))
-            report_progress.write('    New phase {}, {}'.format(phase, orientation))
+            known_factors.append((phase, *orientation))
+            report_progress.write('    New phase {}, ori: {}, {}, {}'.format(phase, *orientation))
 
     return factor_index
 
@@ -189,8 +216,8 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         factor_max = factor.max() or 1
         factor *= 1/factor_max
 
-        factor_index = classify(parameters, factor, known_factors)
-        report_progress.write('    Factor index: {}'.format(factor_index))
+        factor_index = classify(parameters, factor.copy * (1/factor_max), known_factors)
+        report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
 
         loading = np.asarray(Image.open(loading_info['filename']))
         color = colors[factor_index % len(colors)]
@@ -206,6 +233,7 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
 
 def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
     shortname = parameters['shortname']
+    dp_rotation = 41  # TODO(simonhog): Move to parameters
     methods = [
             method.strip() for method in parameters['methods'].split(',')
             if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
@@ -245,12 +273,15 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
             else:
                 factor_average = np.average(factor_list, weights=factor_weights, axis=0)
                 factor_average *= 255.0 / factor_average.max()
+                factor_average = sk_rotate(factor_average, dp_rotation, resize=False, preserve_range=True)
             save_figure(
                     os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
                     TikzImage(factor_average.astype('uint8')))
 
 
 if __name__ == '__main__':
+    hs.preferences.General.nb_progressbar = False
+    hs.preferences.General.show_progressbar = False
     # TODO(simonhog): Make these less global. known_factors -> general dictionary for data?
     result_directory = sys.argv[1]
     classification_method = sys.argv[2] if len(sys.argv) > 2 else 'l2_norm'
