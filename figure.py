@@ -10,15 +10,12 @@ def save_image(filename, data):
         .save(filename)
 
 
-def save_figure(filename, *args):
+def save_figure(filename, *elements):
     tikz_output = ''
-    last_shape = (1, 1)
-    for element in args:
+    for element in elements:
         if not isinstance(element, TikzElement):
             raise TypeError('Expected a Tikz element, got {}'.format(type(element)))
-        if isinstance(element, TikzImage):
-            last_shape = element.shape()
-        tikz_output += element.write(filename, last_shape)
+        tikz_output += element.write(filename, elements)
 
     with open(filename, 'w') as f:
         f.write(tikz_output)
@@ -34,7 +31,7 @@ class TikzImage(TikzElement):
         self.angle = angle
 
 
-    def write(self, figure_filename, _):
+    def write(self, figure_filename, figure_elements):
         if isinstance(self.data, str):
             image_filename = self.data
         else:
@@ -47,6 +44,8 @@ class TikzImage(TikzElement):
             include_graphics_arguments = r'width=0.98\textwidth'
         else:
             include_graphics_arguments = r'width=0.98\textwidth, angle={}'.format(self.angle)
+        if any(el for el in figure_elements if isinstance(el, TikzColorbar)):
+            include_graphics_arguments = include_graphics_arguments.replace('textwidth', 'textwidth-2cm')
 
         return r"""\node[anchor=south west, inner sep=0pt] (img) at (0,0)%
     {{\includegraphics[{}]{{{}}}}};%
@@ -70,7 +69,8 @@ class TikzCircle(TikzElement):
         self.text_properties = text_properties
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, _, figure_elements):
+        last_shape = next(el for el in figure_elements if isinstance(el, TikzImage)).shape()
         pos = self.transform @ np.array([
             self.cx / (0.5*last_shape[1]) - 1,
             self.cy / (0.5*last_shape[0]) - 1])
@@ -99,7 +99,8 @@ class TikzRectangle(TikzElement):
         self.text_properties = text_properties
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, _, figure_elements):
+        last_shape = next(el for el in figure_elements if isinstance(el, TikzImage)).shape()
         rel_a = self.transform @ np.array([
             self.x1 / (0.5*last_shape[1]) - 1,
             self.y1 / (0.5*last_shape[0]) - 1])
@@ -126,12 +127,53 @@ class TikzScalebar(TikzElement):
         self.text = text
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, figure_filename, figure_elements):
         return r"""\begin{{scope}}[x={{(img.south east)}},y={{(img.north west)}}]
     \fill [fill=black, fill opacity=0.5] (0.2em,0.2em) rectangle ({sb_width}/{im_width}+0.05,1.8em);
     \draw [white, line width=0.2em] (0.4em,0.6em) -- node[above,inner sep=0.1em, font=\footnotesize] {{{text}}} ({sb_width}/{im_width}+0.04, 0.6em);
 \end{{scope}}
 """.format(text=self.text, sb_width=self.scalebar_width_physical, im_width=self.image_width_physical)
+
+
+class TikzColorbar(TikzElement):
+    def __init__(self, min_value, max_value, step_value, colormap, length, horizontal=False):
+        self.min_value = min_value
+        self.max_value = max_value
+        self.step_value = step_value
+        self.colormap = colormap
+        self.length = length
+        self.horizontal = horizontal
+
+
+    def write(self, figure_filename, figure_elements):
+        if self.horizontal:
+            colorbar_direction = ' horizontal'
+            size_settings = 'width={}'.format(self.length)
+        else:
+            colorbar_direction = ''
+            size_settings = 'height={}'.format(self.length)
+
+        return r"""\begin{{axis}}[
+    hide axis,
+    scale only axis,
+    height=0pt,
+    width=0pt,
+    colorbar,
+    colormap/{colormap},
+    colorbar{dir},
+    point meta min={min_value},
+    point meta max={max_value},
+    colorbar style={{
+        {size}
+    }}]
+    \addplot [draw=none] coordinates {{(0,0) (1,1)}};
+\end{{axis}}
+        """.format(
+                colormap=self.colormap,
+                min_value=self.min_value,
+                max_value=self.max_value,
+                dir=colorbar_direction,
+                size=size_settings)
 
 
 class TikzAxis(TikzElement):
@@ -140,12 +182,12 @@ class TikzAxis(TikzElement):
         self.elements = args
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, figure_filename, figure_elements):
         result = r"""\begin{{axis}}[
     {}]
 """.format(',\n    '.join(('{}={}'.format(key.replace('_', ' '), value) for key, value in self.axis_properties.items())))
         result += '    ' + (
-                '\n'.join(element.write(figure_filename, last_shape) for element in self.elements)).replace('\n', '\n    ')
+                '\n'.join(element.write(figure_filename, figure_elements) for element in self.elements)).replace('\n', '\n    ')
         result += '\n\\end{axis}'
         return result
 
@@ -161,7 +203,7 @@ class TikzTablePlot(TikzElement):
         self.plot_properties = kwargs
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, figure_filename, figure_elements):
         result = r"""\addplot+[
     {}""".format((',\n    '.join('{}={}'.format(key.replace('_', ' '), value) for key, value in self.plot_properties.items())))
         if len(self.errors) > 0:
@@ -187,6 +229,6 @@ class TikzLegend(TikzElement):
         self.entries = args
 
 
-    def write(self, figure_filename, last_shape):
+    def write(self, figure_filename, figure_elements):
         return '\n'.join(r'\addlegendentry{{{}}}'.format(entry) for entry in self.entries)
 

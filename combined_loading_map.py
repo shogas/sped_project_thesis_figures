@@ -18,6 +18,7 @@ from pyxem.generators.indexation_generator import IndexationGenerator
 from pyxem.generators.library_generator import DiffractionLibraryGenerator
 from pyxem.generators.structure_library_generator import StructureLibraryGenerator
 from pyxem.libraries.diffraction_library import load_DiffractionLibrary
+from pyxem.utils.expt_utils import affine_transformation
 from diffpy.structure import loadStructure
 
 from common import result_image_file_info
@@ -26,6 +27,7 @@ from parameters import parameters_parse
 from figure import save_figure
 from figure import TikzImage
 from figure import TikzScalebar
+from figure import TikzColorbar
 
 
 def image_l2_norm(image_a, image_b):
@@ -180,12 +182,12 @@ def classify_template_match(parameters, factor, known_factors):
     return factor_index
 
 
-def combine_loading_map(parameters, method, factor_infos, loading_infos, classify, experimental):
+def combine_loading_map(parameters, method, factor_infos, loading_infos, classify):
     total_width  = max((info['x_stop'] for info in loading_infos))
     total_height = max((info['y_stop'] for info in loading_infos))
 
     combined_loadings = np.zeros((total_height, total_width, 3))
-    reconstruction = np.empty((total_width, total_height, *experimental.data.shape[2:4]))
+    reconstruction = None  # Delayed initialization to get signal dimensions
 
     colors = np.array([
             [1, 0, 0], # Red
@@ -215,6 +217,8 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
 
         factor  = np.load(factor_info['filename'].replace('tiff', 'npy'))
         loading = np.load(loading_info['filename'].replace('tiff', 'npy'))
+        if reconstruction is None:
+            reconstruction = np.zeros((total_width, total_height, *factor.shape))
         reconstruction += np.outer(
                 loading.ravel(),
                 factor.ravel()).reshape(
@@ -233,33 +237,39 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
 
         factors.append((factor_index, factor, pixel_count))
 
-
-    reconstruction_error = np.abs(experimental.data - reconstruction)
-    error = np.sum(reconstruction_error, axis=(2, 3))
-    report_progress.write('    Max error: {}'.format(error.max()))
-
     combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors, error
+    return combined_loadings.astype('uint8'), factors, reconstruction
 
 
-def preprocessor_affine_transform(data, parameters):
+def preprocessor_affine_transform(signal, parameters):
+    print('Applying transform')
     # TODO(simonhog): What is the cost of wrapping in ElectronDiffraction?
-    signal = pxm.ElectronDiffraction(data)
+    # signal = pxm.ElectronDiffraction(data)
     scale_x = parameters['scale_x']
     scale_y = parameters['scale_y']
     offset_x = parameters['offset_x']
     offset_y = parameters['offset_y']
-    signal.apply_affine_transformation(np.array([
+    transform = np.array([
             [scale_x, 0, offset_x],
             [0, scale_y, offset_y],
             [0, 0, 1]
-        ]))
-    return signal.data
+        ])
+    # signal.map(affine_transformation,
+          # matrix=transform,
+          # inplace=True,
+          # order=3,
+          # ragged=False,
+          # parallel=True)
+    # print('Transform ended')
+    signal.apply_affine_transformation(transform)
+    return signal
 
 
 def preprocessor_gaussian_difference(data, parameters):
     # TODO(simonhog): Does this copy the data? Hopefully not
+    print('Gaussian')
     signal = pxm.ElectronDiffraction(data)
+    print('  loaded')
     sig_width = signal.axes_manager.signal_shape[0]
     sig_height = signal.axes_manager.signal_shape[1]
 
@@ -268,8 +278,9 @@ def preprocessor_gaussian_difference(data, parameters):
             sigma_min=parameters['gaussian_sigma_min'],
             sigma_max=parameters['gaussian_sigma_max'])
     signal.data /= signal.data.max()
+    print('Computed')
 
-    return signal.data
+    return signal
 
 
 def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
@@ -288,23 +299,25 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         'template_match': classify_template_match,
     }[classification_method]
 
-    experimental_data = hs.load(parameters['sample_file'], lazy=True)
+    # experimental = hs.load(parameters['sample_file'], lazy=True)
+    experimental = pxm.ElectronDiffraction(hs.load(parameters['sample_file']))
+    # experimental.data *= 1.0/255.0
     # TODO: Lazy
     experimental_data = preprocessor_gaussian_difference(
             preprocessor_affine_transform(
-                experimental_data.data.compute(), parameters),
-            parameters)
+                experimental, parameters),
+            parameters).data
 
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
-        combined_loadings, factors, error = combine_loading_map(
+        combined_loadings, factors, reconstruction = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
                 loading_infos_for_method,
-                classify,
-                experimental_data)
+                classify)
+
         for factor_index, factor, count in factors:
             if factor_index not in allfactors:
                 allfactors[factor_index] = []
@@ -329,13 +342,31 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
                     os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
                     TikzImage(factor_average.astype('uint8')))
 
+        # reconstruction_error = np.abs(experimental.data - reconstruction)
+        # reconstruction_error /= experimental.data
+        # error_intensity = np.sum(reconstruction_error, axis=(2, 3))
 
-        error_max = error.max()
-        print(error_max)
-        error *= 255.0/error_max if error_max > 0 else 1
+        # error = calculate_error(experimental_data, reconstruction)
+        # experimental_intensity = np.sum(experimental_data, axis=(2, 3))
+        # error /= experimental_intensity
+        # NOTE: To get the same scale on all the error plots
+        error = np.sum(np.abs(experimental_data - reconstruction), axis=(2, 3))
+        print(error.min())
+        print(error.max())
+        error_min = 140
+        error_max = 280
+
+        plt.figure()
+        error_image = plt.imshow(error, cmap='viridis')
+        error_colors = 255*np.array(error_image.cmap(
+            error_image.norm(error)))[:, :, 0:3]
+
+        save_figure(
+                os.path.join(result_directory, 'reconstruction_error_{}_colorbar.tex'.format(shortname)),
+                TikzColorbar(error_min, error_max, None, 'viridis', '4cm'))
         save_figure(
                 os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
-                TikzImage(error.astype('uint8')))
+                TikzImage(error_colors.astype('uint8')))
 
 if __name__ == '__main__':
     hs.preferences.General.nb_progressbar = False
