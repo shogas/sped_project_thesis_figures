@@ -12,6 +12,7 @@ import pyxem as pxm
 from skimage.transform import rotate as sk_rotate
 
 from parameters import parameters_parse
+from parameters import parameters_save
 from figure import save_image
 from figure import save_figure
 from figure import TikzCircle
@@ -89,7 +90,7 @@ def vdf(parameters):
         nav_height, nav_width, sig_height, sig_width = s.data.shape
         dp_centre = np.array([0.5*sig_width, 0.5*sig_height])
 
-        for desc in rois:
+        for i, desc in enumerate(rois):
             print('  Generating VDF image for', desc['name'])
             roi = pxm.roi.CircleROI(desc['cx'], desc['cy'], desc['r'])
             vdf = s.get_virtual_image(roi).data.astype('float')
@@ -126,12 +127,19 @@ def vdf(parameters):
                 intensity_elements.append(TikzScalebar(intensity_scale_length, intensity_scale_physical, r'\SI{100}{\nm}'))
                 dp_elements.append(TikzScalebar(1, 0.032*sig_width, r'\SI{1}{\per\angstrom}'))
 
+            output_prefix = '{}_{}-{}_{}-{}'.format('vdf', 0, nav_width, 0, nav_height)
             save_figure(
-                    os.path.join(output_dir, 'vdf_{}.tex'.format(desc['name'])),
+                    os.path.join(output_dir, '{}_loadings_{}_{}.tex'.format(output_prefix, desc['name'], i)),
                     *intensity_elements)
             save_figure(
-                os.path.join(output_dir, 'vdf_{}_dp.tex'.format(desc['name'])),
+                os.path.join(output_dir, '{}_factors_{}_{}.tex'.format(output_prefix, desc['name'], i)),
                 *dp_elements)
+
+    parameters['methods'] = 'vdf'
+    parameters['__save_method_vdf'] = 'decomposition'
+    parameters['sample_file'] = next(iter(vdf_rois.keys()))  # At least one of them
+    parameters['nav_scale_x'] = 1.28  # TODO: Get from file
+    parameters_save(parameters, output_dir)
 
 
 if __name__ == "__main__":
