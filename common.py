@@ -1,13 +1,16 @@
 import glob
 import os
 import re
+from itertools import chain
 
 def result_image_file_info(dir, type):
-    filename_regex = re.compile(r"""(?P<method_name>.*)_
-                                    (?P<x_start>\d*)-(?P<x_stop>\d*)_
-                                    (?P<y_start>\d*)-(?P<y_stop>\d*)_
-                                    {}_(?P<factor_index>\d*)\.tiff""".format(type), re.X)
-    loadings_filenames = glob.iglob(os.path.join(dir, '*{}_*.tiff'.format(type)))
+    filename_regex = re.compile(r"""(?P<method_name>.+)_
+                                    (?P<x_start>\d+)-(?P<x_stop>\d+)_
+                                    (?P<y_start>\d+)-(?P<y_stop>\d+)_
+                                    {}_(?P<optional>\S+_)?(?P<factor_index>\d+)\.(tiff|png)""".format(type), re.X)
+    loadings_filenames = chain(
+        glob.iglob(os.path.join(dir, '*{}_*.tiff'.format(type))),
+        glob.iglob(os.path.join(dir, '*{}_*.png'.format(type))))
     image_infos = {}
     for loading_filename in loadings_filenames:
         match = filename_regex.match(os.path.basename(loading_filename))
