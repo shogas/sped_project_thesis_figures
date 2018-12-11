@@ -11,6 +11,8 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 
+import seaborn as sns
+
 import hyperspy.api as hs
 import pyxem as pxm
 from pyxem.generators.diffraction_generator import DiffractionGenerator
@@ -25,9 +27,13 @@ from common import result_image_file_info
 from parameters import parameters_parse
 
 from figure import save_figure
-from figure import TikzImage
-from figure import TikzScalebar
+from figure import TikzAxis
 from figure import TikzColorbar
+from figure import TikzImage
+from figure import TikzRectangle
+from figure import TikzScalebar
+from figure import TikzTablePlot
+from figure import material_color_palette
 
 
 def image_l2_norm(image_a, image_b):
@@ -182,27 +188,26 @@ def classify_template_match(parameters, factor, known_factors):
     return factor_index
 
 
-def combine_loading_map(parameters, method, factor_infos, loading_infos, classify):
-    total_width  = max((info['x_stop'] for info in loading_infos))
-    total_height = max((info['y_stop'] for info in loading_infos))
+def combine_loading_map(parameters, method, factor_infos, loading_infos, classify,
+        line_plot_start, line_plot_end):
+    total_width  = max(info['x_stop'] for info in loading_infos)
+    total_height = max(info['y_stop'] for info in loading_infos)
 
     combined_loadings = np.zeros((total_height, total_width, 3))
+    loadings = {}
     reconstruction = None  # Delayed initialization to get signal dimensions
 
-    colors = np.array([
-            [1, 0, 0], # Red
-            [0, 1, 0], # Green
-            [0, 0, 1], # Blue
-            [1, 1, 0], # Yellow
-            [1, 0, 1], # Magenta
-            [0, 1, 1], # Cyan
-            [0.5, 0, 0],
-            [0, 0.5, 0],
-            [0, 0, 0.5],
-            [0.5, 0.5, 0],
-            [0.5, 0, 0.5],
-            [0, 0.5, 0.5],
-            ])
+    colors = [
+        ('Red', [1, 0, 0]),
+        ('Green', [0, 1, 0]),
+        ('Blue', [0, 0, 1]),
+        ('Yellow', [1, 1, 0]),
+        ('Magenta', [1, 0, 1]),
+        ('Cyan', [0, 1, 1]),
+    ]
+    # TODO(simonhog): Parameterize
+    if method == 'umap' or len(factor_infos) > 6:
+        colors = material_color_palette
 
     known_factors = []
     factor_info = factor_infos[0]
@@ -229,16 +234,22 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         factor_index = classify(parameters, factor.copy() * (1/factor_max), known_factors)
         report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
 
+        if tile[2] < line_plot_start and line_plot_start < tile[3]:
+            if factor_index not in loadings:
+                loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
+            tile_width = tile[1] - tile[0]
+            loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
+
         x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
         y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
-        color = colors[factor_index % len(colors)]
+        color = colors[factor_index % len(colors)][1]
         combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
         pixel_count = np.count_nonzero(loading[loading > 10])
 
         factors.append((factor_index, factor, pixel_count))
 
     combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors, reconstruction
+    return combined_loadings.astype('uint8'), factors, reconstruction, loadings
 
 
 def preprocessor_affine_transform(signal, parameters):
@@ -287,10 +298,16 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     shortname = parameters['shortname']
     dp_rotation = 41  # TODO(simonhog): Move to parameters
     methods = [
-            method.strip() for method in parameters['methods'].split(',')
-            if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
+        method.strip() for method in parameters['methods'].split(',')
+        if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
     factor_infos = result_image_file_info(result_directory, 'factors')
     loading_infos = result_image_file_info(result_directory, 'loadings')
+
+    experimental = hs.load(parameters['sample_file'], lazy=True)
+    full_width = experimental.data.shape[1]
+    full_height = experimental.data.shape[0]
+    line_plot_start = 10  # TODO(simonhog): Move to parameters
+    line_plot_end = 22  # TODO(simonhog): Move to parameters
 
     classify = {
         'l2_norm': classify_l2_norm_normal,
@@ -302,12 +319,13 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
-        combined_loadings, factors, reconstruction = combine_loading_map(
+        combined_loadings, factors, reconstruction, loadings = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
                 loading_infos_for_method,
-                classify)
+                classify,
+                line_plot_start, line_plot_end)
 
         for factor_index, factor, count in factors:
             if factor_index not in allfactors:
@@ -342,9 +360,6 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         # error /= experimental_intensity
         # NOTE: To get the same scale on all the error plots
 
-        experimental = hs.load(parameters['sample_file'], lazy=True)
-        full_width = experimental.data.shape[1]
-        full_height = experimental.data.shape[0]
         split_width = parameters['split_width'] if 'split_width' in parameters else full_width
         split_height = parameters['split_height'] if 'split_height' in parameters else full_height
         error = np.empty((full_height, full_width))
@@ -379,6 +394,50 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         save_figure(
                 os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
                 TikzImage(error_colors.astype('uint8')))
+
+        line_x = full_width // 2
+        save_figure(
+                os.path.join(result_directory, 'lineplot_loading_map_{}_{}.tex'.format(shortname, method_name)),
+                TikzImage(combined_loadings, rotation),
+                TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)),
+                TikzRectangle(line_x, full_height - line_plot_start, line_x + 1, full_height - line_plot_end, r'black, line width=0.1em'))
+        # TODO(simonhog): Utility function for easier multi-line plots
+        axis_styles = {
+            'legend_pos': 'north west',
+            'axis_x_line': 'bottom',
+            'axis_y_line': 'left',
+            'xmin': 0,
+            'ymin': 0,
+            'width': r'\textwidth',
+            'enlargelimits': 'upper',
+        }
+        line_styles = {
+            'solid': 'true',
+            'mark': '*',
+            'line_width': '1.5pt'
+        }
+        colors = material_color_palette
+        line_elements = []
+        x_axis_labels = ['{:.1f}'.format(1.28*i) for i in range(line_plot_end - line_plot_start)] 
+        for i, loading_line in enumerate(loadings.values()):
+            if np.count_nonzero(loading_line) == 0:
+                continue
+            color = colors[i % len(colors)][0]
+            styles = {
+                **line_styles,
+                'color': color,
+                'mark_options': '{{fill={}, scale=0.75}}'.format(color)}
+            line_elements.append(TikzTablePlot(
+                x_axis_labels, loading_line, **styles))
+
+        save_figure(
+                os.path.join(result_directory, 'lineplot_{}_{}.tex'.format(shortname, method_name)),
+                TikzAxis(
+                    *line_elements,
+                    xlabel=r'Position/\si{\nm}',
+                    ylabel='Loading',
+                    **axis_styles))
+
 
 if __name__ == '__main__':
     hs.preferences.General.nb_progressbar = False

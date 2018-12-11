@@ -157,6 +157,20 @@ copy_tikz(
         os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_nmf_2.tex'),
         os.path.join(gen_output_path, 'three_phase_no_split_factors_nmf_2.tex'))
 
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'reconstruction_error_110_three_phase_no_split_nmf.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_reconstruction_error_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'reconstruction_error_110_three_phase_no_split_colorbar.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_reconstruction_error_colorbar.tex'))
+
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'lineplot_110_three_phase_no_split_nmf.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_line_plot_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_three_phase_no_split, 'lineplot_loading_map_110_three_phase_no_split_nmf.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_line_plot_loading_map_nmf.tex'))
+
 parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
         '__elapsed_time_nmf', 'ThreePhaseNoSplitNMFTime', '.2f')
@@ -168,24 +182,20 @@ parameter_to_tex(
 copy_tikz(
         os.path.join(data_path, run_dir_three_phase_no_split, 'loading_map_110_three_phase_no_split_umap.tex'),
         os.path.join(gen_output_path, 'three_phase_no_split_loading_map_umap.tex'))
+for i in range(9):
+    copy_tikz(
+            os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_{}.tex'.format(i)),
+            os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_{}.tex'.format(i)))
 copy_tikz(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_0.tex'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_0.tex'))
+        os.path.join(data_path, run_dir_three_phase_no_split, 'reconstruction_error_110_three_phase_no_split_umap.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_reconstruction_error_umap.tex'))
+
 copy_tikz(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_1.tex'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_1.tex'))
+        os.path.join(data_path, run_dir_three_phase_no_split, 'lineplot_110_three_phase_no_split_umap.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_line_plot_umap.tex'))
 copy_tikz(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_2.tex'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_2.tex'))
-copy_tikz(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_3.tex'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_3.tex'))
-copy_tikz(
-        os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_4.tex'),
-        os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_4.tex'))
-# copy_tikz(
-        # os.path.join(data_path, run_dir_three_phase_no_split, 'factor_average_110_three_phase_no_split_umap_5.tex'),
-        # os.path.join(gen_output_path, 'three_phase_no_split_factors_umap_5.tex'))
+        os.path.join(data_path, run_dir_three_phase_no_split, 'lineplot_loading_map_110_three_phase_no_split_umap.tex'),
+        os.path.join(gen_output_path, 'three_phase_no_split_line_plot_loading_map_umap.tex'))
 
 parameter_to_tex(
         os.path.join(data_path, run_dir_three_phase_no_split, 'metadata.txt'),
