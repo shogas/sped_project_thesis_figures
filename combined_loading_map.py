@@ -299,15 +299,6 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         'template_match': classify_template_match,
     }[classification_method]
 
-    # experimental = hs.load(parameters['sample_file'], lazy=True)
-    experimental = pxm.ElectronDiffraction(hs.load(parameters['sample_file']))
-    # experimental.data *= 1.0/255.0
-    # TODO: Lazy
-    experimental_data = preprocessor_gaussian_difference(
-            preprocessor_affine_transform(
-                experimental, parameters),
-            parameters).data
-
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
@@ -350,7 +341,28 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         # experimental_intensity = np.sum(experimental_data, axis=(2, 3))
         # error /= experimental_intensity
         # NOTE: To get the same scale on all the error plots
-        error = np.sum(np.abs(experimental_data - reconstruction), axis=(2, 3))
+
+        experimental = hs.load(parameters['sample_file'], lazy=True)
+        full_width = experimental.data.shape[1]
+        full_height = experimental.data.shape[0]
+        split_width = parameters['split_width'] if 'split_width' in parameters else full_width
+        split_height = parameters['split_height'] if 'split_height' in parameters else full_height
+        error = np.empty((full_height, full_width))
+
+        for split_start_y in range(0, full_height, split_height):
+            split_end_y = min(split_start_y + split_height, full_height)
+            slice_y = slice(split_start_y, split_end_y)
+            for split_start_x in range(0, full_width, split_width):
+                split_end_x = min(split_start_x + split_width, full_width)
+                slice_x = slice(split_start_x, split_end_x)
+            # TODO: Lazy
+            experimental_data = preprocessor_gaussian_difference(
+                    preprocessor_affine_transform(
+                        pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
+                    parameters).data
+
+            error[slice_y, slice_x] = np.sum(
+                    np.abs(experimental_data - reconstruction[slice_y, slice_x]), axis=(2, 3))
         print(error.min())
         print(error.max())
         error_min = 140
