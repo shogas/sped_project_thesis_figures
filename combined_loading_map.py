@@ -220,8 +220,19 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
             last_tile = tile
 
-        factor  = np.load(factor_info['filename'].replace('tiff', 'npy'))
-        loading = np.load(loading_info['filename'].replace('tiff', 'npy'))
+        factor_filename = factor_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
+        if os.path.exists(factor_filename):
+            factor = np.load(factor_filename)
+        else:
+            factor = np.asarray(Image.open(factor_info['filename'])).astype('float')
+            factor *= 1/255.0
+        loading_filename = loading_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
+        if os.path.exists(loading_filename):
+            loading = np.load(loading_filename)
+        else:
+            loading = np.asarray(Image.open(loading_info['filename'])).astype('float')
+            loading *= 1/255.0
+
         if reconstruction is None:
             reconstruction = np.zeros((total_width, total_height, *factor.shape))
         reconstruction += np.outer(
@@ -243,6 +254,11 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
         y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
         color = colors[factor_index % len(colors)][1]
+        plt.figure()
+        plt.imshow(np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3))
+        plt.figure()
+        plt.imshow(factor)
+        plt.show()
         combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
         pixel_count = np.count_nonzero(loading[loading > 10])
 
@@ -256,6 +272,9 @@ def preprocessor_affine_transform(signal, parameters):
     print('Applying transform')
     # TODO(simonhog): What is the cost of wrapping in ElectronDiffraction?
     # signal = pxm.ElectronDiffraction(data)
+    if 'scale_x' not in parameters:
+        print('Missing transformation information in parameters, skipping')
+        return signal
     scale_x = parameters['scale_x']
     scale_y = parameters['scale_y']
     offset_x = parameters['offset_x']
@@ -276,11 +295,13 @@ def preprocessor_affine_transform(signal, parameters):
     return signal
 
 
-def preprocessor_gaussian_difference(data, parameters):
+def preprocessor_gaussian_difference(signal, parameters):
     # TODO(simonhog): Does this copy the data? Hopefully not
     print('Gaussian')
-    signal = pxm.ElectronDiffraction(data)
-    print('  loaded')
+    if 'gaussian_sigma_min' not in parameters:
+        print('Missing gaussian information in parameters, skipping')
+        return signal
+    # signal = pxm.ElectronDiffraction(data)
     sig_width = signal.axes_manager.signal_shape[0]
     sig_height = signal.axes_manager.signal_shape[1]
 
