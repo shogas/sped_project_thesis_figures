@@ -20,6 +20,27 @@ def save_figure(filename, *elements):
     with open(filename, 'w') as f:
         f.write(tikz_output)
 
+material_color_palette = [
+    ( 'MaterialRed',        np.array((244,  67,  54)) / 255.0),
+    ( 'MaterialGreen',      np.array(( 76, 175,  80)) / 255.0),
+    ( 'MaterialBlue',       np.array(( 33, 150, 243)) / 255.0),
+    ( 'MaterialYellow',     np.array((255, 235,  59)) / 255.0),
+    ( 'MaterialPurple',     np.array((156,  39, 176)) / 255.0),
+    ( 'MaterialCyan',       np.array((  0, 188, 212)) / 255.0),
+    ( 'MaterialDeepPurple', np.array((103,  58, 183)) / 255.0),
+    ( 'MaterialAmber',      np.array((255, 193,   7)) / 255.0),
+    ( 'MaterialLightGreen', np.array((139, 195,  74)) / 255.0),
+    ( 'MaterialPink',       np.array((233,  30,  99)) / 255.0),
+    ( 'MaterialDeepOrange', np.array((255,  87,  34)) / 255.0),
+    ( 'MaterialBrown',      np.array((121,  85,  72)) / 255.0),
+    ( 'MaterialGray',       np.array((158, 158, 158)) / 255.0),
+    ( 'MaterialIndigo',     np.array(( 63,  81, 181)) / 255.0),
+    ( 'MaterialLightBlue',  np.array((  3, 169, 244)) / 255.0),
+    ( 'MaterialLime',       np.array((205, 220,  57)) / 255.0),
+    ( 'MaterialTeal',       np.array((  0, 150, 136)) / 255.0),
+    ( 'MaterialOrange',     np.array((255, 152,   0)) / 255.0),
+    ( 'MaterialBlueGray',   np.array(( 96, 125, 139)) / 255.0),
+]
 
 class TikzElement:
     pass
@@ -217,7 +238,7 @@ class TikzTablePlot(TikzElement):
 }};""".format('\n'.join('        {}, {}, {}'.format(x, y, error) for x, y, error in zip(self.xs, self.ys, self.errors)))
         else:
             result += r"""] table [x=x, y=y, col sep=comma] {{
-        x,  y,
+        x,  y
 {}
 }};""".format('\n'.join('        {}, {}'.format(x, y) for x, y in zip(self.xs, self.ys)))
 

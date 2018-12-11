@@ -14,6 +14,7 @@ from figure import save_figure
 from figure import TikzAxis
 from figure import TikzLegend
 from figure import TikzTablePlot
+from figure import material_color_palette
 from parameters import parameters_parse
 
 
@@ -154,18 +155,7 @@ def combine_performance(source, result_directory):
         'mark': '*',
         'line_width': '1.5pt'
     }
-    colors = [
-        'MaterialBlue',
-        'MaterialDeepOrange',
-        'MaterialGreen',
-        'MaterialRed',
-        'MaterialPurple',
-        'MaterialBrown',
-        'MaterialPink',
-        'MaterialGray',
-        'MaterialBeige',
-        'MaterialCyan',
-    ]
+    colors = material_color_palette
 
     memory_means /= 1000000000
     memory_stds /=  1000000000
