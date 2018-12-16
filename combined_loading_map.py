@@ -188,14 +188,15 @@ def classify_template_match(parameters, factor, known_factors):
     return factor_index
 
 
-def combine_loading_map(parameters, method, factor_infos, loading_infos, classify,
+def combine_loading_map(parameters, method, factor_infos, loading_infos, classify, experimental,
         line_plot_start, line_plot_end):
     total_width  = max(info['x_stop'] for info in loading_infos)
     total_height = max(info['y_stop'] for info in loading_infos)
 
     combined_loadings = np.zeros((total_height, total_width, 3))
     loadings = {}
-    reconstruction = None  # Delayed initialization to get signal dimensions
+    full_height, full_width = experimental.data.shape[0:2]
+    error = np.zeros((full_height, full_width))
 
     colors = [
         ('Red', [1, 0, 0]),
@@ -211,14 +212,27 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
 
     known_factors = []
     factor_info = factor_infos[0]
-    last_tile = (0, 0, 0, 0)
+    last_tile = None
     factors = []
     for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
         tile = (factor_info['x_start'], factor_info['x_stop'],
                 factor_info['y_start'], factor_info['y_stop'])
-        if tile != last_tile:
+        tile_width = tile[1] - tile[0]
+        tile_height = tile[3] - tile[2]
+
+        if last_tile is None or tile != last_tile:
             report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
+            if last_tile is not None:
+                slice_x = slice(last_tile[0], last_tile[1])
+                slice_y = slice(last_tile[2], last_tile[3])
+                experimental_data = preprocessor_gaussian_difference(
+                    preprocessor_affine_transform(
+                        pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
+                parameters).data
+                error[slice_y, slice_x] = np.sum(
+                    np.abs(experimental_data - reconstruction), axis=(2, 3))
             last_tile = tile
+            reconstruction = np.zeros((tile_height, tile_width, 144, 144))
 
         factor_filename = factor_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
         if os.path.exists(factor_filename):
@@ -233,12 +247,10 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             loading = np.asarray(Image.open(loading_info['filename'])).astype('float')
             loading *= 1/255.0
 
-        if reconstruction is None:
-            reconstruction = np.zeros((total_width, total_height, *factor.shape))
         reconstruction += np.outer(
-                loading.ravel(),
-                factor.ravel()).reshape(
-                        *loading.shape, *factor.shape)
+            loading.ravel(),
+            factor.ravel()).reshape(
+                    *loading.shape, *factor.shape)
 
         factor_max = factor.max() or 1
 
@@ -248,28 +260,30 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
         if tile[2] < line_plot_start and line_plot_start < tile[3]:
             if factor_index not in loadings:
                 loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
-            tile_width = tile[1] - tile[0]
             loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
 
         x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
         y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
         color = colors[factor_index % len(colors)][1]
-        plt.figure()
-        plt.imshow(np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3))
-        plt.figure()
-        plt.imshow(factor)
-        plt.show()
         combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
-        pixel_count = np.count_nonzero(loading[loading > 10])
+        pixel_count = np.count_nonzero(loading[loading > 0.04])
 
         factors.append((factor_index, factor, pixel_count))
 
+    slice_x = slice(last_tile[0], last_tile[1])
+    slice_y = slice(last_tile[2], last_tile[3])
+    experimental_data = preprocessor_gaussian_difference(
+        preprocessor_affine_transform(
+            pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
+    parameters).data
+    error[slice_y, slice_x] = np.sum(
+        np.abs(experimental_data - reconstruction), axis=(2, 3))
     combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors, reconstruction, loadings
+    return combined_loadings.astype('uint8'), factors, error, loadings
 
 
 def preprocessor_affine_transform(signal, parameters):
-    print('Applying transform')
+    report_progress.write('Applying transform')
     # TODO(simonhog): What is the cost of wrapping in ElectronDiffraction?
     # signal = pxm.ElectronDiffraction(data)
     if 'scale_x' not in parameters:
@@ -297,7 +311,7 @@ def preprocessor_affine_transform(signal, parameters):
 
 def preprocessor_gaussian_difference(signal, parameters):
     # TODO(simonhog): Does this copy the data? Hopefully not
-    print('Gaussian')
+    report_progress.write('Gaussian')
     if 'gaussian_sigma_min' not in parameters:
         print('Missing gaussian information in parameters, skipping')
         return signal
@@ -310,7 +324,6 @@ def preprocessor_gaussian_difference(signal, parameters):
             sigma_min=parameters['gaussian_sigma_min'],
             sigma_max=parameters['gaussian_sigma_max'])
     signal.data /= signal.data.max()
-    print('Computed')
 
     return signal
 
@@ -340,12 +353,13 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
-        combined_loadings, factors, reconstruction, loadings = combine_loading_map(
+        combined_loadings, factors, error, loadings = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
                 loading_infos_for_method,
                 classify,
+                experimental,
                 line_plot_start, line_plot_end)
 
         for factor_index, factor, count in factors:
@@ -380,25 +394,6 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         # experimental_intensity = np.sum(experimental_data, axis=(2, 3))
         # error /= experimental_intensity
         # NOTE: To get the same scale on all the error plots
-
-        split_width = parameters['split_width'] if 'split_width' in parameters else full_width
-        split_height = parameters['split_height'] if 'split_height' in parameters else full_height
-        error = np.empty((full_height, full_width))
-
-        for split_start_y in range(0, full_height, split_height):
-            split_end_y = min(split_start_y + split_height, full_height)
-            slice_y = slice(split_start_y, split_end_y)
-            for split_start_x in range(0, full_width, split_width):
-                split_end_x = min(split_start_x + split_width, full_width)
-                slice_x = slice(split_start_x, split_end_x)
-            # TODO: Lazy
-            experimental_data = preprocessor_gaussian_difference(
-                    preprocessor_affine_transform(
-                        pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
-                    parameters).data
-
-            error[slice_y, slice_x] = np.sum(
-                    np.abs(experimental_data - reconstruction[slice_y, slice_x]), axis=(2, 3))
         print(error.min())
         print(error.max())
         error_min = 140
