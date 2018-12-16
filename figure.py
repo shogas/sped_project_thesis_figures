@@ -254,6 +254,31 @@ class TikzTablePlot(TikzElement):
         return result
 
 
+class TikzTable3D(TikzElement):
+    def __init__(self, coords):
+        self.coords = coords
+
+
+    def write(self, figure_filename, figure_elements):
+        return r"""\addplot3+[only marks, scatter] table [x=x, y=y, z=z, col sep=comma] {{
+    x, y, z
+{}
+}};""".format('\n'.join('    {}, {}, {}'.format(*coord) for coord in self.coords))
+
+
+class TikzPlot3D(TikzElement):
+    def __init__(self, expression, **kwargs):
+        self.expression = expression
+        self.line_style = kwargs
+
+
+    def write(self, figure_filename, figure_elements):
+        return r"""\addplot3[
+    mesh,
+    variable = \u,
+    {}]
+    ({});""".format(',\n    '.join('{}={}'.format(key.replace('_', ' '), value) for key, value in self.line_style.items()), self.expression)
+
 class TikzLegend(TikzElement):
     def __init__(self, *args):
         self.entries = args
