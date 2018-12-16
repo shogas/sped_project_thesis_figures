@@ -65,7 +65,7 @@ class TikzImage(TikzElement):
             include_graphics_arguments = r'width=0.98\textwidth'
         else:
             include_graphics_arguments = r'width=0.98\textwidth, angle={}'.format(self.angle)
-        if any(el for el in figure_elements if isinstance(el, TikzColorbar)):
+        if any(el for el in figure_elements if isinstance(el, TikzColorbar) and not el.horizontal):
             include_graphics_arguments = include_graphics_arguments.replace('textwidth', 'textwidth-2cm')
 
         return r"""\node[anchor=south west, inner sep=0pt] (img) at (0,0)%
@@ -157,13 +157,19 @@ class TikzScalebar(TikzElement):
 
 
 class TikzColorbar(TikzElement):
-    def __init__(self, min_value, max_value, step_value, colormap, length, horizontal=False):
+    def __init__(self, min_value, max_value, step_value, colormap, length, horizontal=False, **kwargs):
         self.min_value = min_value
         self.max_value = max_value
         self.step_value = step_value
         self.colormap = colormap
         self.length = length
         self.horizontal = horizontal
+        print(type(kwargs))
+        if len(kwargs) > 0:
+            self.styles = ',\n    ' + ',\n    '.join('{}={}'.format(key.replace('_', ' '), value)
+                    for key, value in kwargs.items())
+        else:
+            self.styles = ''
 
 
     def write(self, figure_filename, figure_elements):
@@ -186,7 +192,7 @@ class TikzColorbar(TikzElement):
     point meta max={max_value},
     colorbar style={{
         {size}
-    }}]
+    }}{styles}]
     \addplot [draw=none] coordinates {{(0,0) (1,1)}};
 \end{{axis}}
         """.format(
@@ -194,22 +200,25 @@ class TikzColorbar(TikzElement):
                 min_value=self.min_value,
                 max_value=self.max_value,
                 dir=colorbar_direction,
-                size=size_settings)
+                size=size_settings,
+                styles=self.styles)
 
 
 class TikzAxis(TikzElement):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, axis_type='', **kwargs):
         self.axis_properties = kwargs
+        self.axis_type = axis_type
         self.elements = args
 
 
     def write(self, figure_filename, figure_elements):
-        result = r"""\begin{{axis}}[
+        result = r"""\begin{{{}axis}}[
     {}]
-""".format(',\n    '.join(('{}={}'.format(key.replace('_', ' '), value) for key, value in self.axis_properties.items())))
+""".format(self.axis_type, ',\n    '.join(('{}={}'.format(key.replace('_', ' '), value)
+                                          for key, value in self.axis_properties.items())))
         result += '    ' + (
                 '\n'.join(element.write(figure_filename, figure_elements) for element in self.elements)).replace('\n', '\n    ')
-        result += '\n\\end{axis}'
+        result += '\n\\end{{{}axis}}'.format(self.axis_type)
         return result
 
 
