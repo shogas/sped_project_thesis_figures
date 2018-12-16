@@ -355,7 +355,7 @@ def build_fcc_structure():
     ]
 
     vectors = [
-        ((a, a, 0), (0, 0, a))
+        ((a, 0, 0), (0, a, a))
     ]
 
     return atoms, outline_ends, vectors
