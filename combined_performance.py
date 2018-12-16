@@ -49,7 +49,7 @@ def load_data(dir_glob, key_columns):
 
     perf_dfs = []
     for run_dir in glob.iglob(dir_glob):
-        print(run_dir)
+        print('Loading ', run_dir)
         time_filename = os.path.join(run_dir, 'time.txt')
         mem_filename = os.path.join(run_dir, 'mem.txt')
         time_df = pandas.read_csv(
@@ -64,6 +64,8 @@ def load_data(dir_glob, key_columns):
                 converters={'timestamp': parse_timestamp})
 
         time_df = time_df.assign(elapsed_delta=time_df.elapsed.apply(parse_timedelta_s))
+        print(' ', np.unique(time_df.n_neighbours))
+        print(' ', np.unique(time_df.split_size))
 
         mem_peaks = np.empty(len(time_df))
         for i, row in time_df.iterrows():
@@ -93,21 +95,23 @@ def source_aggregate_correlate(mean, std):
             np.array([elapsed_stds]),\
             np.array([memory_means]),\
             np.array([memory_stds]),\
-            ['Relative time']
+            ['']
 
 
-def source_aggregate_split_nmf(mean, std):
+def source_aggregate_split(mean, std):
     elapsed_means = []
     elapsed_stds = []
     memory_means = []
     memory_stds = []
     legends = []
+    print(mean.index)
     for component_count in mean.index.levels[0]:
+        print(component_count)
         elapsed_means.append(mean.elapsed[component_count])
         elapsed_stds.append(std.elapsed[component_count])
         memory_means.append(mean.mem_peak[component_count])
         memory_stds.append(std.mem_peak[component_count])
-        legends.append('{} components'.format(component_count))
+        legends.append('{}'.format(component_count))
     return np.array(elapsed_means),\
             np.array(elapsed_stds),\
             np.array(memory_means),\
@@ -122,15 +126,24 @@ def combine_performance(source, result_directory):
             ['method', 'library_size'],
             source_aggregate_correlate,
             '{Library size}',
-            '{Relative time}'),
+            '{Speed-up}',
+            'Speed-up'),
         'split_nmf': (
             'run_perf_split_*',
             ['component_count', 'split_size'],
-            source_aggregate_split_nmf,
+            source_aggregate_split,
             '{Split size}',
-            r'{Time/\si{\s}}'),
+            r'{Time/\si{\s}}',
+            ' components'),
+        'split_umap': (
+            'run_perf_split_umap_*',
+            ['n_neighbours', 'split_size'],
+            source_aggregate_split,
+            '{Split size}',
+            r'{Time/\si{\s}}',
+            ' neighbours'),
     }
-    subdir_glob, key_columns, source_aggregate, x_label, y_label = source_info[source]
+    subdir_glob, key_columns, source_aggregate, x_label, y_label, legend_postfix = source_info[source]
 
     perf_df = load_data(os.path.join(result_directory, subdir_glob), key_columns)
 
@@ -140,6 +153,8 @@ def combine_performance(source, result_directory):
 
     elapsed_means, elapsed_stds, memory_means, memory_stds, legends = source_aggregate(mean, std)
     x_axis_labels = mean.index.levels[1]
+    for i in range(len(legends)):
+        legends[i] += legend_postfix
 
     axis_styles = {
         'legend_pos': 'north west',
@@ -166,8 +181,8 @@ def combine_performance(source, result_directory):
         color = colors[i % len(colors)]
         styles = {
             **line_styles,
-            'color': color,
-            'mark_options': '{{fill={}, scale=0.75}}'.format(color)}
+            'color': color[0],
+            'mark_options': '{{fill={}, scale=0.75}}'.format(color[0])}
         elapsed_elements.append(TikzTablePlot(
             x_axis_labels, elapsed_mean, elapsed_std, **styles))
         elapsed_elements.append(TikzLegend(legend))
