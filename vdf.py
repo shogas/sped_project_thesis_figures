@@ -124,7 +124,8 @@ def vdf(parameters):
             if scalebar_name in parameters:
                 intensity_scale_length = parameters[scalebar_name]
                 intensity_scale_physical = nav_scale_x*nav_width if desc['rot'] == 0 else nav_scale_y*nav_height
-                intensity_elements.append(TikzScalebar(intensity_scale_length, intensity_scale_physical, r'\SI{100}{\nm}'))
+                scalebar_length = r'\SI{{{}}}{{\nm}}'.format(intensity_scale_length)
+                intensity_elements.append(TikzScalebar(intensity_scale_length, intensity_scale_physical, scalebar_length))
                 dp_elements.append(TikzScalebar(1, 0.032*sig_width, r'\SI{1}{\per\angstrom}'))
 
             output_prefix = '{}_{}-{}_{}-{}'.format('vdf', 0, nav_width, 0, nav_height)
