@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import sys
 
@@ -214,109 +215,6 @@ def classify_template_match(parameters, factor, known_factors):
     return factor_index, ('template', crystal_mapping.data)
 
 
-def combine_loading_map(parameters, method, factor_infos, loading_infos, classify, experimental,
-        line_plot_start, line_plot_end):
-    total_width  = max(info['x_stop'] for info in loading_infos)
-    total_height = max(info['y_stop'] for info in loading_infos)
-
-    combined_loadings = np.zeros((total_height, total_width, 3))
-    crystallographic_map = np.zeros((total_height, total_width, 7))
-    line_loadings = {}
-    full_height, full_width = experimental.data.shape[0:2]
-    error = np.zeros((full_height, full_width))
-
-    colors = [
-        ('Red', [1, 0, 0]),
-        ('Green', [0, 1, 0]),
-        ('Blue', [0, 0, 1]),
-        ('Yellow', [1, 1, 0]),
-        ('Magenta', [1, 0, 1]),
-        ('Cyan', [0, 1, 1]),
-    ]
-    # TODO(simonhog): Parameterize
-    if method == 'umap' or len(factor_infos) > 6:
-        colors = material_color_palette
-    color_mapping = list(range(len(colors)))
-    color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
-    color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
-    color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
-    color_mapping[7], color_mapping[8] = color_mapping[8], color_mapping[7]
-
-    known_factors = []
-    factor_info = factor_infos[0]
-    last_tile = None
-    factors = []
-    for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
-        tile = (factor_info['x_start'], factor_info['x_stop'],
-                factor_info['y_start'], factor_info['y_stop'])
-        tile_width = tile[1] - tile[0]
-        tile_height = tile[3] - tile[2]
-
-        if last_tile is None or tile != last_tile:
-            report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, total_width, total_height))
-            if last_tile is not None:
-                slice_x = slice(last_tile[0], last_tile[1])
-                slice_y = slice(last_tile[2], last_tile[3])
-                # experimental_data = preprocessor_gaussian_difference(
-                    # preprocessor_affine_transform(
-                        # pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
-                # parameters).data
-                # error[slice_y, slice_x] = np.sum(
-                    # np.abs(experimental_data - reconstruction), axis=(2, 3))
-            last_tile = tile
-            # reconstruction = np.zeros((tile_height, tile_width, 144, 144))
-
-        factor_filename = factor_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
-        if os.path.exists(factor_filename):
-            factor = np.load(factor_filename)
-        else:
-            factor = np.asarray(Image.open(factor_info['filename'])).astype('float')
-            factor *= 1/255.0
-        loading_filename = loading_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
-        if os.path.exists(loading_filename):
-            loading = np.load(loading_filename)
-        else:
-            loading = np.asarray(Image.open(loading_info['filename'])).astype('float')
-            loading *= 1/255.0
-
-        # reconstruction += np.outer(
-            # loading.ravel(),
-            # factor.ravel()).reshape(
-                    # *loading.shape, *factor.shape)
-
-        factor_max = factor.max() or 1
-
-        factor_index, classify_extra = classify(parameters, factor.copy() * (1/factor_max), known_factors)
-        report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
-
-        if tile[2] < line_plot_start and line_plot_start < tile[3]:
-            if factor_index not in line_loadings:
-                line_loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
-            line_loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
-
-        x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
-        y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
-        color = colors[color_mapping[factor_index % len(colors)]][1]
-        combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
-
-        pixel_count = np.count_nonzero(loading[loading > 0.04])
-        factors.append((factor_index, factor, pixel_count))
-
-        if classify_extra is not None and classify_extra[0] == 'template':
-            crystallographic_map[y_slice, x_slice][loading > 0.5] = classify_extra[1]
-
-    slice_x = slice(last_tile[0], last_tile[1])
-    slice_y = slice(last_tile[2], last_tile[3])
-    # experimental_data = preprocessor_gaussian_difference(
-        # preprocessor_affine_transform(
-            # pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
-    # parameters).data
-    # error[slice_y, slice_x] = np.sum(
-        # np.abs(experimental_data - reconstruction), axis=(2, 3))
-    combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors, error, line_loadings, CrystallographicMap(crystallographic_map)
-
-
 def preprocessor_affine_transform(signal, parameters):
     report_progress.write('Applying transform')
     # TODO(simonhog): What is the cost of wrapping in ElectronDiffraction?
@@ -362,20 +260,249 @@ def preprocessor_gaussian_difference(signal, parameters):
     return signal
 
 
+def create_lineplot(parameters, result_directory, merged_factor_info, combined_loadings, loading_rotation, full_height, method_name, colors, color_mapping):
+    shortname = parameters['shortname']
+    line_plot_start = 10  # TODO(simonhog): Move to parameters
+    line_plot_end = 22  # TODO(simonhog): Move to parameters
+    line_loadings = {}
+    for factor_index, factor_infos in merged_factor_info.items():
+        for factor, factor_info, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
+            if tile[2] < line_plot_start and line_plot_start < tile[3]:
+                tile_width = (tile[1] - tile[0])
+                if factor_index not in line_loadings:
+                    line_loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
+                line_loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
+                line_x = (tile[0] + tile[1]) // 2
+
+    nav_width = combined_loadings.data.shape[1]
+    save_figure(
+            os.path.join(result_directory, 'lineplot_loading_map_{}_{}.tex'.format(shortname, method_name)),
+            TikzImage(combined_loadings.astype('uint8'), loading_rotation),
+            TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)),
+            TikzRectangle(line_x, full_height - line_plot_start, line_x + 1, full_height - line_plot_end, r'black, line width=0.1em'))
+
+    # TODO(simonhog): Utility function for easier multi-line plots
+    axis_styles = {
+        'legend_pos': 'north west',
+        'axis_x_line': 'bottom',
+        'axis_y_line': 'left',
+        'xmin': 0,
+        'ymin': 0,
+        'width': r'\textwidth',
+        'enlargelimits': 'upper',
+    }
+    line_styles = {
+        'solid': 'true',
+        'mark': '*',
+        'line_width': '1.5pt'
+    }
+    line_elements = []
+    x_axis_labels = ['{:.1f}'.format(1.28*i) for i in range(line_plot_end - line_plot_start)]
+    for factor_index, loading_line in line_loadings.items():
+        if np.count_nonzero(loading_line) == 0:
+            continue
+        color = colors[color_mapping[factor_index % len(colors)]][0]
+        styles = {
+            **line_styles,
+            'color': color,
+            'mark_options': '{{fill={}, scale=0.75}}'.format(color)}
+        line_elements.append(TikzTablePlot(
+            x_axis_labels, loading_line, **styles))
+
+    save_figure(
+            os.path.join(result_directory, 'lineplot_{}_{}.tex'.format(shortname, method_name)),
+            TikzAxis(
+                *line_elements,
+                xlabel=r'Position/\si{\nm}',
+                ylabel='Loading',
+                **axis_styles))
+
+
+def create_combined_loading_map(parameters, merged_factor_info, full_width, full_height, colors, color_mapping, method_name):
+    shortname = parameters['shortname']
+    combined_loadings = np.zeros((full_height, full_width, 3))
+    for factor_index, factor_infos in merged_factor_info.items():
+        for factor, factor_info, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
+            x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
+            y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
+            color = colors[color_mapping[factor_index % len(colors)]][1]
+            combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
+
+    nav_width = combined_loadings.data.shape[1]
+    combined_loadings *= 255 / combined_loadings.max()
+    save_figure(
+            os.path.join(result_directory, 'loading_map_{}_{}.tex'.format(shortname, method_name)),
+            TikzImage(combined_loadings.astype('uint8'), rotation),
+            TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)))
+
+    return combined_loadings
+
+
+def calculate_error(parameters, experimental, reconstruction):
+    experimental_data = preprocessor_gaussian_difference(
+        preprocessor_affine_transform(
+            pxm.ElectronDiffraction(experimental), parameters),
+        parameters).data
+    return np.sum(np.abs(experimental_data - reconstruction), axis=(2, 3))
+
+
+def create_reconstruction(parameters, result_directory, method_name,
+        experimental, merged_factor_infos, full_width, full_height):
+    last_tile = None
+    error = np.zeros((full_height, full_width))
+    for factor_index, factor_infos in merged_factor_infos.items():
+        for factor, factor_infos, loading, loading_info, factor_weight, tile, classify_extra in report_progress(factor_infos):
+            if last_tile is None or tile != last_tile:
+                # NOTE: This assumes that factors are presented sorted by tile
+                report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, full_width, full_height))
+                if last_tile is not None:
+                    slice_x = slice(last_tile[0], last_tile[1])
+                    slice_y = slice(last_tile[2], last_tile[3])
+                    tile
+                    error[slice_y, slice_x] = calculate_error(parameters, experimental.inav[slice_x, slice_y], reconstruction)
+                tile_width = tile[1] - tile[0]
+                tile_height = tile[3] - tile[2]
+                reconstruction = np.zeros((tile_height, tile_width, 144, 144))
+                last_tile = tile
+            reconstruction += np.outer(
+                loading.ravel(),
+                factor.ravel()).reshape(*loading.shape, *factor.shape)
+
+    slice_x = slice(last_tile[0], last_tile[1])
+    slice_y = slice(last_tile[2], last_tile[3])
+    error[slice_y, slice_x] = calculate_error(parameters, experimental.inav[slice_x, slice_y], reconstruction)
+
+    # NOTE: To get the same scale on all the error plots
+    error_min = 140
+    error_max = 280
+    print('Min error', error.min(), 'colorbar', error_min)
+    print('Max error', error.max(), 'colorbar', error_max)
+
+    shortname = parameters['shortname']
+    fig, ax = plt.subplots()
+    error_image = ax.imshow(error, cmap='viridis')
+    error_colors = 255*np.array(error_image.cmap(error_image.norm(error)))[:, :, 0:3]
+    save_figure(
+            os.path.join(result_directory, 'reconstruction_error_{}_colorbar.tex'.format(shortname)),
+            TikzColorbar(error_min, error_max, None, 'viridis', '4cm'))
+    save_figure(
+            os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
+            TikzImage(error_colors.astype('uint8')))
+
+
+def load_factorization_data(filename):
+    numpy_filename = filename.replace('tiff', 'npy').replace('png', 'npy')
+    if os.path.exists(numpy_filename):
+        data = np.load(numpy_filename)
+    else:
+        data = np.asarray(Image.open(filename)).astype('float')
+        data *= 1/255.0
+    return data
+
+
+def merge_factors(factor_infos, loading_infos, classify, full_width, full_height):
+    merged_factor_infos = defaultdict(list)
+    last_tile = None
+    known_factors = []
+    for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
+        tile = (factor_info['x_start'], factor_info['x_stop'],
+                factor_info['y_start'], factor_info['y_stop'])
+        if last_tile is None or tile != last_tile:
+            report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, full_width, full_height))
+            last_tile = tile
+
+        factor = load_factorization_data(factor_info['filename'])
+        loading = load_factorization_data(loading_info['filename'])
+
+        factor_max = factor.max() or 1
+        factor_index, classify_extra = classify(parameters, factor.copy() * (1/factor_max), known_factors)
+        report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
+
+        pixel_count = np.count_nonzero(loading[loading > 0.04])
+
+        merged_factor_infos[factor_index].append((factor, factor_info, loading, loading_info, pixel_count, tile, classify_extra))
+    return merged_factor_infos
+
+
+def create_average_factors(parameters, result_directory, merged_factor_infos, method_name):
+    dp_rotation = 41  # TODO(simonhog): Move to parameters
+    shortname = parameters['shortname']
+    for factor_index, factor_infos in merged_factor_infos.items():
+        factors = [info[0] for info in factor_infos]
+        weights = [info[4] for info in factor_infos]
+
+        if np.sum(weights) == 0:
+            factor_average = factors[0]
+        else:
+            factor_average = np.average(factors, weights=weights, axis=0)
+            factor_average *= 255.0 / factor_average.max()
+            factor_average = sk_rotate(factor_average, dp_rotation, resize=False, preserve_range=True)
+        save_figure(
+                os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
+                TikzImage(factor_average.astype('uint8')))
+
+
+def create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height):
+    crystallographic_map = np.zeros((full_height, full_width, 7))
+    for factor_index, factor_infos in merged_factor_infos.items():
+        for factor, factor_infos, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
+            slice_x = slice(tile[0], tile[1])
+            slice_y = slice(tile[2], tile[3])
+            if classify_extra is not None and classify_extra[0] == 'template':
+                # TODO(simonhog): This only keeps the crystallographic map of the last when overlapping
+                crystallographic_map[slice_y, slice_x][loading > 0.2] = classify_extra[1]
+
+    if np.count_nonzero(crystallographic_map) > 0:
+        save_crystallographic_map(parameters, result_directory, CrystallographicMap(crystallographic_map))
+
+
+def process_method(parameters, result_directory, method, classify, factor_infos, loading_infos, loading_rotation):
+    allfactors = {}
+    allfactor_weights = {}
+
+    experimental = hs.load(parameters['sample_file'], lazy=True)
+    full_width = experimental.data.shape[1]
+    full_height = experimental.data.shape[0]
+
+    merged_factor_infos = merge_factors(factor_infos, loading_infos, classify, full_width, full_height)
+
+    colors = [
+        ('Red', [1, 0, 0]),
+        ('Green', [0, 1, 0]),
+        ('Blue', [0, 0, 1]),
+        ('Yellow', [1, 1, 0]),
+        ('Magenta', [1, 0, 1]),
+        ('Cyan', [0, 1, 1]),
+    ]
+    # TODO(simonhog): Parameterize, this is for umap, 110
+    if method == 'umap' or len(factor_infos) > 6:
+        colors = material_color_palette
+    color_mapping = list(range(len(colors)))
+    # color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
+    # color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
+    # color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
+    # color_mapping[7], color_mapping[8] = color_mapping[8], color_mapping[7]
+
+    print('Combining loading map')
+    combined_loadings = create_combined_loading_map(parameters, merged_factor_infos, full_width, full_height, colors, color_mapping, method)
+
+    print('Creating line plot')
+    create_lineplot(parameters, result_directory, merged_factor_infos, combined_loadings, loading_rotation, full_height, method, colors, color_mapping)
+    print('Creating components')
+    create_average_factors(parameters, result_directory, merged_factor_infos, method)
+    print('Reconstructing')
+    create_reconstruction(parameters, result_directory, method, experimental, merged_factor_infos, full_width, full_height)
+    print('Creating crystallographic map')
+    create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height)
+
+
 def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
     shortname = parameters['shortname']
-    dp_rotation = 41  # TODO(simonhog): Move to parameters
     methods = [
         method.strip() for method in parameters['methods'].split(',')
         if parameters['__save_method_{}'.format(method.strip())] == 'decomposition']
     factor_infos = result_image_file_info(result_directory, 'factors')
     loading_infos = result_image_file_info(result_directory, 'loadings')
-
-    experimental = hs.load(parameters['sample_file'], lazy=True)
-    full_width = experimental.data.shape[1]
-    full_height = experimental.data.shape[0]
-    line_plot_start = 10  # TODO(simonhog): Move to parameters
-    line_plot_end = 22  # TODO(simonhog): Move to parameters
 
     classify = {
         'l1_norm': classify_l1_norm_normal,
@@ -387,118 +514,13 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     }[classification_method]
 
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
-        allfactors = {}
-        allfactor_weights = {}
-        combined_loadings, factors, error, loadings, crystallographic_map = combine_loading_map(
-                parameters,
-                method_name,
-                factor_infos_for_method,
-                loading_infos_for_method,
-                classify,
-                experimental,
-                line_plot_start, line_plot_end)
-
-        for factor_index, factor, count in factors:
-            if factor_index not in allfactors:
-                allfactors[factor_index] = []
-                allfactor_weights[factor_index] = []
-            allfactors[factor_index].append(factor)
-            allfactor_weights[factor_index].append(count)
-
-        nav_width = combined_loadings.data.shape[1]
-        save_figure(
-                os.path.join(result_directory, 'loading_map_{}_{}.tex'.format(shortname, method_name)),
-                TikzImage(combined_loadings, rotation),
-                TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)))
-
-        for (factor_index, factor_list), factor_weights in zip(allfactors.items(), allfactor_weights.values()):
-            if np.sum(factor_weights) == 0:
-                factor_average = factor_list[0]
-            else:
-                factor_average = np.average(factor_list, weights=factor_weights, axis=0)
-                factor_average *= 255.0 / factor_average.max()
-                factor_average = sk_rotate(factor_average, dp_rotation, resize=False, preserve_range=True)
-            save_figure(
-                    os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
-                    TikzImage(factor_average.astype('uint8')))
-
-
-        if np.count_nonzero(crystallographic_map) > 0:
-            save_crystallographic_map(parameters, result_directory, crystallographic_map)
-
-        # reconstruction_error = np.abs(experimental.data - reconstruction)
-        # reconstruction_error /= experimental.data
-        # error_intensity = np.sum(reconstruction_error, axis=(2, 3))
-
-        # error = calculate_error(experimental_data, reconstruction)
-        # experimental_intensity = np.sum(experimental_data, axis=(2, 3))
-        # error /= experimental_intensity
-        # NOTE: To get the same scale on all the error plots
-        print(error.min())
-        print(error.max())
-        error_min = 140
-        error_max = 280
-
-        plt.figure()
-        error_image = plt.imshow(error, cmap='viridis')
-        error_colors = 255*np.array(error_image.cmap(
-            error_image.norm(error)))[:, :, 0:3]
-
-        save_figure(
-                os.path.join(result_directory, 'reconstruction_error_{}_colorbar.tex'.format(shortname)),
-                TikzColorbar(error_min, error_max, None, 'viridis', '4cm'))
-        save_figure(
-                os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
-                TikzImage(error_colors.astype('uint8')))
-
-        line_x = full_width // 2
-        save_figure(
-                os.path.join(result_directory, 'lineplot_loading_map_{}_{}.tex'.format(shortname, method_name)),
-                TikzImage(combined_loadings, rotation),
-                TikzScalebar(scalebar_nm, parameters['nav_scale_x']*nav_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)),
-                TikzRectangle(line_x, full_height - line_plot_start, line_x + 1, full_height - line_plot_end, r'black, line width=0.1em'))
-        # TODO(simonhog): Utility function for easier multi-line plots
-        axis_styles = {
-            'legend_pos': 'north west',
-            'axis_x_line': 'bottom',
-            'axis_y_line': 'left',
-            'xmin': 0,
-            'ymin': 0,
-            'width': r'\textwidth',
-            'enlargelimits': 'upper',
-        }
-        line_styles = {
-            'solid': 'true',
-            'mark': '*',
-            'line_width': '1.5pt'
-        }
-        colors = material_color_palette
-        line_elements = []
-        x_axis_labels = ['{:.1f}'.format(1.28*i) for i in range(line_plot_end - line_plot_start)] 
-        for i, loading_line in enumerate(loadings.values()):
-            if np.count_nonzero(loading_line) == 0:
-                continue
-            color = colors[i % len(colors)][0]
-            styles = {
-                **line_styles,
-                'color': color,
-                'mark_options': '{{fill={}, scale=0.75}}'.format(color)}
-            line_elements.append(TikzTablePlot(
-                x_axis_labels, loading_line, **styles))
-
-        save_figure(
-                os.path.join(result_directory, 'lineplot_{}_{}.tex'.format(shortname, method_name)),
-                TikzAxis(
-                    *line_elements,
-                    xlabel=r'Position/\si{\nm}',
-                    ylabel='Loading',
-                    **axis_styles))
+        process_method(parameters, result_directory, method_name, classify,
+                factor_infos_for_method, loading_infos_for_method, rotation)
 
 
 if __name__ == '__main__':
     hs.preferences.General.nb_progressbar = False
     hs.preferences.General.show_progressbar = False
-    # TODO(simonhog): Make these less global. known_factors -> general dictionary for data?
     result_directory = sys.argv[1]
     classification_method = sys.argv[2] if len(sys.argv) > 2 else 'l2_norm'
     parameters = parameters_parse(os.path.join(result_directory, 'metadata.txt'))
