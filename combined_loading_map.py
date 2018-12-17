@@ -20,11 +20,13 @@ from pyxem.generators.indexation_generator import IndexationGenerator
 from pyxem.generators.library_generator import DiffractionLibraryGenerator
 from pyxem.generators.structure_library_generator import StructureLibraryGenerator
 from pyxem.libraries.diffraction_library import load_DiffractionLibrary
+from pyxem.signals.crystallographic_map import CrystallographicMap
 from pyxem.utils.expt_utils import affine_transformation
 from diffpy.structure import loadStructure
 
 from common import result_image_file_info
 from parameters import parameters_parse
+from combined_orientation import save_crystallographic_map
 
 from figure import save_figure
 from figure import TikzAxis
@@ -190,11 +192,12 @@ def classify_template_match(parameters, factor, known_factors):
     crystal_mapping = indexation_results.get_crystallographic_map(show_progressbar=False)
     phases = crystal_mapping.get_phase_map().data.ravel()
     orientations = crystal_mapping.isig[1:4].data[0]  #crystal_mapping.get_orientation_map().data.ravel()
-    for phase, orientation in zip(phases, orientations):
+    scores = crystal_mapping.isig[4].data[0]
+    for phase, orientation, score in zip(phases, orientations, scores):
         phase = int(phase)
         factor_index = -1
         for i, (key_phase, a, b, c) in enumerate(known_factors):
-            # TODO: Far to large bounds, but the matching is not good enough
+            # Quite large bounds, since this is just for grouping similar areas
             if key_phase == phase and\
                     abs(orientation[0] - a) < 15 and\
                     abs(orientation[1] - b) < 15 and\
@@ -202,13 +205,13 @@ def classify_template_match(parameters, factor, known_factors):
                         factor_index = i
                         break
         if factor_index >= 0:
-            report_progress.write('    Matched phase {}, ori: {}, {}, {}'.format(phase, *orientation))
+            report_progress.write('    Matched phase {}, ori: {}, {}, {}, score: {}'.format(phase, *orientation, score))
         else:
             factor_index = len(known_factors)
             known_factors.append((phase, *orientation))
             report_progress.write('    New phase {}, ori: {}, {}, {}'.format(phase, *orientation))
 
-    return factor_index
+    return factor_index, ('template', crystal_mapping.data)
 
 
 def combine_loading_map(parameters, method, factor_infos, loading_infos, classify, experimental,
@@ -217,7 +220,8 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
     total_height = max(info['y_stop'] for info in loading_infos)
 
     combined_loadings = np.zeros((total_height, total_width, 3))
-    loadings = {}
+    crystallographic_map = np.zeros((total_height, total_width, 7))
+    line_loadings = {}
     full_height, full_width = experimental.data.shape[0:2]
     error = np.zeros((full_height, full_width))
 
@@ -335,7 +339,6 @@ def preprocessor_affine_transform(signal, parameters):
           # order=3,
           # ragged=False,
           # parallel=True)
-    # print('Transform ended')
     signal.apply_affine_transformation(transform)
     return signal
 
@@ -386,7 +389,7 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     for (method_name, factor_infos_for_method), loading_infos_for_method in zip(factor_infos.items(), loading_infos.values()):
         allfactors = {}
         allfactor_weights = {}
-        combined_loadings, factors, error, loadings = combine_loading_map(
+        combined_loadings, factors, error, loadings, crystallographic_map = combine_loading_map(
                 parameters,
                 method_name,
                 factor_infos_for_method,
@@ -418,6 +421,10 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
             save_figure(
                     os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
                     TikzImage(factor_average.astype('uint8')))
+
+
+        if np.count_nonzero(crystallographic_map) > 0:
+            save_crystallographic_map(parameters, result_directory, crystallographic_map)
 
         # reconstruction_error = np.abs(experimental.data - reconstruction)
         # reconstruction_error /= experimental.data
