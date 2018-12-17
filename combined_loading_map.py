@@ -36,6 +36,7 @@ from figure import TikzTablePlot
 from figure import material_color_palette
 
 
+
 def image_l2_norm(image_a, image_b):
     a_max = image_a.max() or 1
     b_max = image_b.max() or 1
@@ -44,10 +45,24 @@ def image_l2_norm(image_a, image_b):
     return np.linalg.norm(image_a - image_b, ord='fro')
 
 
+def image_l1_norm(image_a, image_b):
+    a_max = image_a.max() or 1
+    b_max = image_b.max() or 1
+    image_a_scaled = image_a * (1/a_max)
+    image_b_scaled = image_b * (1/b_max)
+    return np.linalg.norm(image_a_scaled - image_b_scaled, ord=1)
+
+
 def image_l2_norm_fft(image_a, image_b):
     image_a = np.fft.fft2(image_a)
     image_b = np.fft.fft2(image_b)
     return image_l2_norm(image_a, image_b)
+
+
+def image_l1_norm_fft(image_a, image_b):
+    image_a = np.fft.fft2(image_a)
+    image_b = np.fft.fft2(image_b)
+    return image_l1_norm(image_a, image_b)
 
 
 def load_compare_factors(parameters, known_factors):
@@ -71,18 +86,26 @@ def classify_compare_l2_norm(parameters, factor, known_factors):
     factor_index = best_diff_index
     report_progress.write('    Matched phase {} (difference {})'.format(factor_index, best_diff))
 
-    return factor_index
+    return factor_index, None
 
 
 def classify_l2_norm_normal(parameters, factor, known_factors):
-    return classify_l2_norm(parameters, factor, known_factors, image_l2_norm)
+    return classify_norm(parameters, factor, known_factors, image_l2_norm)
 
 
 def classify_l2_norm_fourier(parameters, factor, known_factors):
-    return classify_l2_norm(parameters, factor, known_factors, image_l2_norm_fft)
+    return classify_norm(parameters, factor, known_factors, image_l2_norm_fft)
 
 
-def classify_l2_norm(parameters, factor, known_factors, norm_func):
+def classify_l1_norm_normal(parameters, factor, known_factors):
+    return classify_norm(parameters, factor, known_factors, image_l1_norm)
+
+
+def classify_l1_norm_fourier(parameters, factor, known_factors):
+    return classify_norm(parameters, factor, known_factors, image_l1_norm_fft)
+
+
+def classify_norm(parameters, factor, known_factors, norm_func):
     threshold = parameters['classify_l2_norm_threshold']
     if len(known_factors) > 0:
         diffs = [norm_func(factor, known_factor) for known_factor in known_factors]
@@ -99,6 +122,7 @@ def classify_l2_norm(parameters, factor, known_factors, norm_func):
             # plt.imshow(factor)
             # plt.show()
             report_progress.write('    Matched phase {} (difference {})'.format(factor_index, best_diff))
+            # report_progress.write('      {}'.format(diffs))
         else:
             factor_index = len(known_factors)
             known_factors.append(factor)
@@ -107,10 +131,9 @@ def classify_l2_norm(parameters, factor, known_factors, norm_func):
         factor_index = len(known_factors)
         known_factors.append(factor)
 
-    return factor_index
+    return factor_index, None
 
 
-# TODO(simonhog): From compare/methods/template_match
 def create_diffraction_library(parameters, pattern_size):
     diffraction_library_cache_filename = os.path.join(
             parameters['output_dir'],
@@ -209,6 +232,11 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
     # TODO(simonhog): Parameterize
     if method == 'umap' or len(factor_infos) > 6:
         colors = material_color_palette
+    color_mapping = list(range(len(colors)))
+    color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
+    color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
+    color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
+    color_mapping[7], color_mapping[8] = color_mapping[8], color_mapping[7]
 
     known_factors = []
     factor_info = factor_infos[0]
@@ -225,14 +253,14 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             if last_tile is not None:
                 slice_x = slice(last_tile[0], last_tile[1])
                 slice_y = slice(last_tile[2], last_tile[3])
-                experimental_data = preprocessor_gaussian_difference(
-                    preprocessor_affine_transform(
-                        pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
-                parameters).data
-                error[slice_y, slice_x] = np.sum(
-                    np.abs(experimental_data - reconstruction), axis=(2, 3))
+                # experimental_data = preprocessor_gaussian_difference(
+                    # preprocessor_affine_transform(
+                        # pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
+                # parameters).data
+                # error[slice_y, slice_x] = np.sum(
+                    # np.abs(experimental_data - reconstruction), axis=(2, 3))
             last_tile = tile
-            reconstruction = np.zeros((tile_height, tile_width, 144, 144))
+            # reconstruction = np.zeros((tile_height, tile_width, 144, 144))
 
         factor_filename = factor_info['filename'].replace('tiff', 'npy').replace('png', 'npy')
         if os.path.exists(factor_filename):
@@ -247,39 +275,42 @@ def combine_loading_map(parameters, method, factor_infos, loading_infos, classif
             loading = np.asarray(Image.open(loading_info['filename'])).astype('float')
             loading *= 1/255.0
 
-        reconstruction += np.outer(
-            loading.ravel(),
-            factor.ravel()).reshape(
-                    *loading.shape, *factor.shape)
+        # reconstruction += np.outer(
+            # loading.ravel(),
+            # factor.ravel()).reshape(
+                    # *loading.shape, *factor.shape)
 
         factor_max = factor.max() or 1
 
-        factor_index = classify(parameters, factor.copy() * (1/factor_max), known_factors)
+        factor_index, classify_extra = classify(parameters, factor.copy() * (1/factor_max), known_factors)
         report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
 
         if tile[2] < line_plot_start and line_plot_start < tile[3]:
-            if factor_index not in loadings:
-                loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
-            loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
+            if factor_index not in line_loadings:
+                line_loadings[factor_index] = np.zeros(line_plot_end - line_plot_start)
+            line_loadings[factor_index] += loading[line_plot_start:line_plot_end, tile_width // 2]
 
         x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
         y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
-        color = colors[factor_index % len(colors)][1]
+        color = colors[color_mapping[factor_index % len(colors)]][1]
         combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
-        pixel_count = np.count_nonzero(loading[loading > 0.04])
 
+        pixel_count = np.count_nonzero(loading[loading > 0.04])
         factors.append((factor_index, factor, pixel_count))
+
+        if classify_extra is not None and classify_extra[0] == 'template':
+            crystallographic_map[y_slice, x_slice][loading > 0.5] = classify_extra[1]
 
     slice_x = slice(last_tile[0], last_tile[1])
     slice_y = slice(last_tile[2], last_tile[3])
-    experimental_data = preprocessor_gaussian_difference(
-        preprocessor_affine_transform(
-            pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
-    parameters).data
-    error[slice_y, slice_x] = np.sum(
-        np.abs(experimental_data - reconstruction), axis=(2, 3))
+    # experimental_data = preprocessor_gaussian_difference(
+        # preprocessor_affine_transform(
+            # pxm.ElectronDiffraction(experimental.inav[slice_x, slice_y]), parameters),
+    # parameters).data
+    # error[slice_y, slice_x] = np.sum(
+        # np.abs(experimental_data - reconstruction), axis=(2, 3))
     combined_loadings *= 255 / combined_loadings.max()
-    return combined_loadings.astype('uint8'), factors, error, loadings
+    return combined_loadings.astype('uint8'), factors, error, line_loadings, CrystallographicMap(crystallographic_map)
 
 
 def preprocessor_affine_transform(signal, parameters):
@@ -344,6 +375,8 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
     line_plot_end = 22  # TODO(simonhog): Move to parameters
 
     classify = {
+        'l1_norm': classify_l1_norm_normal,
+        'l1_norm_fourier': classify_l1_norm_fourier,
         'l2_norm': classify_l2_norm_normal,
         'l2_norm_fourier': classify_l2_norm_fourier,
         'l2_norm_compare': classify_compare_l2_norm,
