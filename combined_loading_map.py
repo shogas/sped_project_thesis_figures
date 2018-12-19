@@ -68,6 +68,12 @@ def image_l1_norm_fft(image_a, image_b):
     return image_l1_norm(image_a, image_b)
 
 
+def image_l2_norm_log(image_a, image_b):
+    image_a = np.log1p(image_a)
+    image_b = np.log1p(image_b)
+    return image_l2_norm(image_a, image_b)
+
+
 def load_compare_factors(parameters, known_factors):
     zb_1 = np.asarray(Image.open('../../Data/compare_factor_zb_1.png')).astype('float')
     known_factors.append(zb_1 / zb_1.max())
@@ -98,6 +104,10 @@ def classify_l2_norm_normal(parameters, factor, known_factors):
 
 def classify_l2_norm_fourier(parameters, factor, known_factors):
     return classify_norm(parameters, factor, known_factors, image_l2_norm_fft)
+
+
+def classify_l2_norm_log(parameters, factor, known_factors):
+    return classify_norm(parameters, factor, known_factors, image_l2_norm_log)
 
 
 def classify_l1_norm_normal(parameters, factor, known_factors):
@@ -509,6 +519,7 @@ def combine_loading_maps(parameters, result_directory, classification_method, sc
         'l1_norm_fourier': classify_l1_norm_fourier,
         'l2_norm': classify_l2_norm_normal,
         'l2_norm_fourier': classify_l2_norm_fourier,
+        'l2_norm_log': classify_l2_norm_log,
         'l2_norm_compare': classify_compare_l2_norm,
         'template_match': classify_template_match,
     }[classification_method]
