@@ -48,7 +48,7 @@ def combine_indexation_results(object_infos):
     return IndexationResults(combined_indexation_results_data)
 
 
-def save_crystallographic_map(parameters, result_directory, crystal_map):
+def save_crystallographic_map(parameters, result_directory, crystal_map, method_name):
     crystal_map.save_mtex_map(os.path.join(result_directory, 'crystallographic_map_mtex.csv'))
     phase_map = crystal_map.get_phase_map()
     orientation_map = crystal_map.get_orientation_map()
@@ -73,12 +73,13 @@ def save_crystallographic_map(parameters, result_directory, crystal_map):
 
     nav_scale_x = parameters['nav_scale_x']
 
+    shortname = parameters['shortname']
     save_figure(
-            os.path.join(result_directory, 'phase_map.tex'),
+            os.path.join(result_directory, 'phase_map_{}_{}.tex'.format(shortname, method_name)),
             TikzImage(colored_phases.astype('uint8')),
             TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
     save_figure(
-            os.path.join(result_directory, 'reliability_orientation_map.tex'),
+            os.path.join(result_directory, 'reliability_orientation_map_{}_{}.tex'.format(shortname, method_name)),
             TikzImage(reliability_orientation_map.data.astype('uint8')),
             # TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'),
             TikzColorbar(rel_ori_min, rel_ori_max, (rel_ori_max-rel_ori_min)/4,
@@ -86,7 +87,7 @@ def save_crystallographic_map(parameters, result_directory, crystal_map):
                 at=r'{(0.1\textwidth, 0)}',
                 horizontal=True))
     save_figure(
-            os.path.join(result_directory, 'reliability_phase_map.tex'),
+            os.path.join(result_directory, 'reliability_phase_map_{}_{}.tex'.format(shortname, method_name)),
             TikzImage(reliability_phase_map.data.astype('uint8')),
             # TikzScalebar(100, nav_scale_x*nav_width, r'\SI{100}{\nm}'))
             TikzColorbar(rel_pha_min, rel_pha_max, (rel_pha_max-rel_pha_min)/4,
@@ -96,16 +97,13 @@ def save_crystallographic_map(parameters, result_directory, crystal_map):
 
 def combine_orientations(result_directory):
     parameters = parameters_parse(os.path.join(result_directory, 'metadata.txt'))
-    methods = [
-            method.strip() for method in parameters['methods'].split(',')
-            if parameters['__save_method_{}'.format(method.strip())] == 'object']
 
     object_infos = result_object_file_info(result_directory)
     if 'template_match' in object_infos:
         indexation_results = combine_indexation_results(object_infos['template_match'])
 
         crystal_map = indexation_results.get_crystallographic_map()
-        save_crystallographic_map(parameters, result_directory, crystal_map)
+        save_crystallographic_map(parameters, result_directory, crystal_map, 'template_match')
 
 
 if __name__ == '__main__':
