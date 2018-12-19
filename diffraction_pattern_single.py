@@ -12,6 +12,10 @@ from transforms3d.euler import axangle2mat
 
 from parameters import parameters_parse
 
+from figure import save_figure
+from figure import TikzArrow
+from figure import TikzImage
+
 
 
 def generate_pattern(structure, u, v, w, rot,
@@ -53,7 +57,8 @@ def create_patterns(parameters):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    dp_parameter_regex = re.compile(r'(?P<name>\S+)\s+(?P<u>\S+)\s+(?P<v>\S+)\s+(?P<w>\S+)\s+(?P<rot>\S+)$')
+    dp_parameter_regex = re.compile(r'(?P<name>\S+)\s+(?P<u>\S+)\s+(?P<v>\S+)\s+(?P<w>\S+)\s+(?P<rot>\S+)(?P<rest>.*)$')
+    arrow_regex = re.compile(r'\((?P<to_x>\d+)\s+(?P<to_y>\d+)\s+"(?P<desc>[^"]*)"\)')
 
     reciprocal_angstrom_per_pixel = 0.032 # From 110 direction, compared to a_crop
     structures = {}
@@ -78,9 +83,23 @@ def create_patterns(parameters):
                     parameters['simulated_gaussian_sigma'])
             pattern *= 255.0/pattern.max()
             pattern = 255.0 - pattern
-        
-            output_filename = os.path.join(output_dir, 'diffraction_pattern_{}.png'.format(name[3:]))
-            Image.fromarray(pattern.astype('uint8')).save(output_filename)
+
+            arrow_defs = match.group('rest')
+            arrows = []
+            output_filename = os.path.join(output_dir, 'diffraction_pattern_{}.tex'.format(name[3:]))
+            for arrow_def in re.finditer(arrow_regex, arrow_defs):
+                arrows.append(TikzArrow(
+                    pattern.shape[0] // 2, pattern.shape[1] // 2,
+                    int(arrow_def.group('to_x')),
+                    pattern.shape[1] - int(arrow_def.group('to_y')),
+                    r'\accentcolor, line width=0.10em',
+                    text=arrow_def.group('desc'),
+                    text_properties='anchor=south west, xshift=0.2em, yshift=0.2em'))
+
+            save_figure(
+                output_filename,
+                TikzImage(pattern.astype('uint8')),
+                *arrows)
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:

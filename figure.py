@@ -108,6 +108,38 @@ class TikzCircle(TikzElement):
 """.format(self.props, *pos, rel_r, node)
 
 
+class TikzArrow(TikzElement):
+    def __init__(self, from_x, from_y, to_x, to_y, draw_properties, text=None, text_properties=''):
+        self.from_x = from_x
+        self.from_y = from_y
+        self.to_x = to_x
+        self.to_y = to_y
+        self.props = draw_properties
+        self.text = text
+        self.text_properties = text_properties
+
+
+    def write(self, _, figure_elements):
+        last_shape = next(el for el in figure_elements if isinstance(el, TikzImage)).shape()
+        from_x = self.from_x / (0.5*last_shape[1]) - 1
+        from_y = self.from_y / (0.5*last_shape[0]) - 1
+        to_x = self.to_x / (0.5*last_shape[1]) - 1
+        to_y = self.to_y / (0.5*last_shape[0]) - 1
+        if self.text is not None:
+            node = '  node [{}] {{{}}}'.format(self.text_properties, self.text)
+        else:
+            node = ''
+
+        return r"""\draw[->, {}] let
+    \p1 = ($(img)!{}!(img.east)$),
+    \p2 = ($(img)!{}!(img.north)$),
+    \p3 = ($(img)!{}!(img.east)$),
+    \p4 = ($(img)!{}!(img.north)$)
+    in (\x1, \y2) -- (\x3, \y4){};
+""".format(self.props, from_x, from_y, to_x, to_y, node)
+
+
+
 class TikzRectangle(TikzElement):
     def __init__(self, x1, y1, x2, y2, draw_properties, transform=np.identity(2), text=None, text_properties=''):
         self.x1 = x1
@@ -164,7 +196,6 @@ class TikzColorbar(TikzElement):
         self.colormap = colormap
         self.length = length
         self.horizontal = horizontal
-        print(type(kwargs))
         if len(kwargs) > 0:
             self.styles = ',\n    ' + ',\n    '.join('{}={}'.format(key.replace('_', ' '), value)
                     for key, value in kwargs.items())
