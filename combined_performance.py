@@ -64,7 +64,7 @@ def load_data(dir_glob, key_columns):
                 converters={'timestamp': parse_timestamp})
 
         time_df = time_df.assign(elapsed_delta=time_df.elapsed.apply(parse_timedelta_s))
-        print(' ', np.unique(time_df.n_neighbours))
+        print(' ', np.unique(time_df[time_df.columns.values[1]]))
         print(' ', np.unique(time_df.split_size))
 
         mem_peaks = np.empty(len(time_df))
