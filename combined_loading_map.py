@@ -1,4 +1,5 @@
 from collections import defaultdict
+import glob
 import os
 import sys
 
@@ -14,6 +15,7 @@ import matplotlib.pyplot as plt
 
 import seaborn as sns
 
+from diffpy.structure import loadStructure
 import hyperspy.api as hs
 import pyxem as pxm
 from pyxem.generators.diffraction_generator import DiffractionGenerator
@@ -23,7 +25,7 @@ from pyxem.generators.structure_library_generator import StructureLibraryGenerat
 from pyxem.libraries.diffraction_library import load_DiffractionLibrary
 from pyxem.signals.crystallographic_map import CrystallographicMap
 from pyxem.utils.expt_utils import affine_transformation
-from diffpy.structure import loadStructure
+import hdbscan
 
 from common import result_image_file_info
 from parameters import parameters_parse
@@ -270,12 +272,12 @@ def preprocessor_gaussian_difference(signal, parameters):
     return signal
 
 
-def create_lineplot(parameters, result_directory, merged_factor_info, combined_loadings, loading_rotation, full_height, method_name, colors, color_mapping):
+def create_lineplot(parameters, result_directory, merged_factor_infos, combined_loadings, loading_rotation, full_height, method_name, colors, color_mapping):
     shortname = parameters['shortname']
     line_plot_start = 10  # TODO(simonhog): Move to parameters
     line_plot_end = 22  # TODO(simonhog): Move to parameters
     line_loadings = {}
-    for factor_index, factor_infos in merged_factor_info.items():
+    for factor_index, factor_infos in merged_factor_infos.items():
         for factor, factor_info, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
             if tile[2] < line_plot_start and line_plot_start < tile[3]:
                 tile_width = (tile[1] - tile[0])
@@ -328,17 +330,17 @@ def create_lineplot(parameters, result_directory, merged_factor_info, combined_l
                 **axis_styles))
 
 
-def create_combined_loading_map(parameters, merged_factor_info, full_width, full_height, colors, color_mapping, method_name):
+def create_combined_loading_map(parameters, merged_factor_infos, full_width, full_height, colors, color_mapping, method_name, rotation):
     shortname = parameters['shortname']
     combined_loadings = np.zeros((full_height, full_width, 3))
-    for factor_index, factor_infos in merged_factor_info.items():
+    for factor_index, factor_infos in merged_factor_infos.items():
         for factor, factor_info, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
             x_slice = slice(factor_info['x_start'], factor_info['x_stop'])
             y_slice = slice(factor_info['y_start'], factor_info['y_stop'])
             color = colors[color_mapping[factor_index % len(colors)]][1]
             combined_loadings[y_slice, x_slice] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
 
-    nav_width = combined_loadings.data.shape[1]
+    nav_width = combined_loadings.data.shape[1 if rotation == 0 else 0]
     combined_loadings *= 255 / combined_loadings.max()
     save_figure(
             os.path.join(result_directory, 'loading_map_{}_{}.tex'.format(shortname, method_name)),
@@ -446,13 +448,18 @@ def create_average_factors(parameters, result_directory, merged_factor_infos, me
         else:
             factor_average = np.average(factors, weights=weights, axis=0)
             factor_average *= 255.0 / factor_average.max()
-            factor_average = sk_rotate(factor_average, dp_rotation, resize=False, preserve_range=True)
+            factor_colors = sk_rotate(factor_average, dp_rotation, resize=False, preserve_range=True)
+        if 'cepstrum' in method_name:
+            factor_average[factor_average > 10] = 10
+            fig, ax = plt.subplots()
+            factor_image = ax.imshow(factor_average, cmap='viridis')
+            factor_colors = 255*np.array(factor_image.cmap(factor_image.norm(factor_average)))[:, :, 0:3]
         save_figure(
                 os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
-                TikzImage(factor_average.astype('uint8')))
+                TikzImage(factor_colors.astype('uint8')))
 
 
-def create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height):
+def create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height, method_name):
     crystallographic_map = np.zeros((full_height, full_width, 7))
     for factor_index, factor_infos in merged_factor_infos.items():
         for factor, factor_infos, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
