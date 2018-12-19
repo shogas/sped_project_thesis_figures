@@ -8,24 +8,29 @@ gen_code_path   = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Tekst/co
 constants_path  = C:/Users/simho/OneDrive/Skydok/MTNANO/Prosjektoppgave/Tekst/constants.tex
 
 # Relative to data_path
-run_dir_three_phase_no_split = Runs/run_110_three_phase_no_split_20181203_16_51_45_034518
-# run_dir_vdf = Runs/run_vdf_20181204_22_28_55_190772
-run_dir_vdf = Runs/run_vdf_20181207_09_51_53_873430
+run_dir_three_phase_no_split = Runs/run_110_three_phase_no_split_20181211_12_13_40_528155
+run_dir_vdf = Runs/run_vdf_20181216_11_16_19_070051
+run_dir_vdf_line = Runs/run_vdf_20181211_16_25_02_123927
 
-run_dir_full_110_nmf = Runs/run_110_full_nmf_20181123_21_51_25_665830
+run_dir_full_110_nmf = Runs/run_110_full_nmf_20181211_21_18_30_538032
 run_dir_full_110_nmf_many_phase = Runs/run_110_full_nmf_20181130_13_53_57_640988
+run_dir_full_110_nmf_cepstrum = Runs/run_110_full_nmf_cepstrum_20181216_16_11_25_759754
 run_dir_full_110_umap = Runs/run_110_full_umap_a_20181129_09_02_37_114197
 run_dir_full_110_template = Runs/run_110_full_template_match_20181123_09_18_24_085171
 
-run_dir_full_112_c_nmf = Runs/run_112_c_full_nmf_20181203_15_03_43_409590
-run_dir_full_112_d_nmf = Runs/run_112_d_full_nmf_20181202_14_45_40_881183
-run_dir_full_112_e_nmf = Runs/run_112_e_full_nmf_20181202_14_45_40_881183
-run_dir_full_112_c_umap = Runs/run_112_c_full_umap_20181203_07_42_56_874147
-run_dir_full_112_d_umap = Runs/run_112_d_full_umap_20181203_07_42_56_874147
-run_dir_full_112_e_umap = Runs/run_112_e_full_umap_20181203_07_42_56_874147
+run_dir_full_112_c_nmf = Runs/run_112_c_full_nmf_20181217_00_53_39_467258
+run_dir_full_112_d_nmf = Runs/run_112_d_full_nmf_20181217_11_48_44_542598
+run_dir_full_112_e_nmf = Runs/run_112_e_full_nmf_20181217_23_35_19_106171
+run_dir_full_112_d_nmf_cepstrum = Runs/run_112_d_full_nmf_cepstrum_20181217_11_49_34_600266
+run_dir_full_112_c_umap = Runs/run_112_c_full_umap_20181217_00_53_39_467258
+run_dir_full_112_d_umap = Runs/run_112_d_full_umap_20181217_11_49_02_191403
+run_dir_full_112_e_umap = Runs/run_112_e_full_umap_20181217_23_35_27_335115
 
 run_dir_performance_correlate = Runs/run_perf_correlate
 run_dir_performance_split_nmf = Runs/run_perf_split
+run_dir_performance_split_umap = Runs/run_perf_split_umap
+run_dir_scree = Runs/run_scree
 run_dir_svg_crystal = Runs/run_svg_crystal
+run_dir_rotation_list = Runs/run_rotation_list_plot
 run_dir_diffraction_pattern = Runs/run_dp_single
 run_dir_code = ..
