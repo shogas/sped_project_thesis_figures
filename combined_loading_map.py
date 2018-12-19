@@ -470,7 +470,80 @@ def create_crystallographic_map(result_directory, merged_factor_infos, full_widt
                 crystallographic_map[slice_y, slice_x][loading > 0.2] = classify_extra[1]
 
     if np.count_nonzero(crystallographic_map) > 0:
-        save_crystallographic_map(parameters, result_directory, CrystallographicMap(crystallographic_map))
+        save_crystallographic_map(parameters, result_directory, CrystallographicMap(crystallographic_map), method_name)
+
+
+def create_umap_projection(parameters, result_directory, merged_factor_infos, colors, color_mapping, full_width, full_height):
+    shortname = parameters['shortname']
+    embedding = np.zeros((full_height, full_width, 3))
+
+
+    embedding_maps = {
+        '110_full_umap_a': [
+            (slice(0,   145), slice(0,   205)),
+            (slice(145, 290), slice(0,   205)),
+            (slice(0,   145), slice(205, 410)),
+            (slice(145, 290), slice(205, 410))],
+        '112_c_full_umap': [],
+        '112_d_full_umap': [],
+        '112_e_full_umap': [],
+    }
+    for i in range(0, full_height, 150):
+        embedding_maps['112_c_full_umap'].append((slice(0, 200), slice(i, min(i + 150, full_height))))
+        embedding_maps['112_d_full_umap'].append((slice(0, 180), slice(i, min(i + 150, full_height))))
+        embedding_maps['112_e_full_umap'].append((slice(0, 210), slice(i, min(i + 150, full_height))))
+
+    embedding_map = embedding_maps[shortname]
+    for pos, embedding_filename in zip(embedding_map, glob.iglob(os.path.join(result_directory, 'embedding_*.npy'))):
+        tile_width = pos[0].stop - pos[0].start
+        tile_height = pos[1].stop - pos[1].start
+        embedding[pos[1], pos[0]] = np.load(embedding_filename).reshape(tile_height, tile_width, 3)
+
+    if False:
+        clusterer = hdbscan.HDBSCAN(
+            min_samples=parameters['umap_cluster_min_samples'],
+            # min_cluster_size=parameters['umap_cluster_size'],
+            min_cluster_size=2000,
+        ).fit(embedding.reshape(full_height*full_width, 3))
+
+        for i in range(np.max(clusterer.labels_)):
+            print(i, np.count_nonzero(clusterer.labels_ == i))
+        cluster_colors = [colors[color_mapping[l % len(colors)]][1] if l >= 0
+                          else (0.3, 0.3, 0.3)
+                          for l in clusterer.labels_]
+        cluster_member_colors = [sns.desaturate(x, p) for x, p in
+                                 zip(cluster_colors, clusterer.probabilities_)]
+
+    else:
+        cluster_colors = np.zeros((full_height, full_width, 3))
+        for factor_index, factor_infos in merged_factor_infos.items():
+            color = colors[color_mapping[factor_index % len(colors)]][1]
+            for factor, factor_infos, loading, loading_info, factor_weight, tile, classify_extra in factor_infos:
+                slice_x = slice(tile[0], tile[1])
+                slice_y = slice(tile[2], tile[3])
+                cluster_colors[slice_y, slice_x, :] += np.outer(loading.ravel(), color).reshape(loading.shape[0], loading.shape[1], 3)
+        cluster_member_colors = cluster_colors.reshape(full_height*full_width, 3)
+
+    fig, ax_scatter = plt.subplots()
+    x, y = embedding.reshape(full_width*full_height, 3)[:, 1:3].T
+    ax_scatter.scatter(x, y, s=15, c=cluster_member_colors, alpha=0.25)
+    ax_scatter.tick_params(
+        axis='both',
+        which='both',
+        bottom=False,
+        top=False,
+        left=False,
+        right=False,
+        labelleft=False,
+        labelright=False,
+        labelbottom=False)
+
+    plt.savefig(
+        os.path.join(result_directory, 'embedding.png'),
+        dpi=300,
+        frameon=False,
+        bbox_inches='tight',
+        pad_inches=0)
 
 
 def process_method(parameters, result_directory, method, classify, factor_infos, loading_infos, loading_rotation):
@@ -491,26 +564,32 @@ def process_method(parameters, result_directory, method, classify, factor_infos,
         ('Magenta', [1, 0, 1]),
         ('Cyan', [0, 1, 1]),
     ]
-    # TODO(simonhog): Parameterize, this is for umap, 110
     if method == 'umap' or len(factor_infos) > 6:
         colors = material_color_palette
     color_mapping = list(range(len(colors)))
-    # color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
-    # color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
-    # color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
-    # color_mapping[7], color_mapping[8] = color_mapping[8], color_mapping[7]
+    # TODO(simonhog): Parameterize
+    if method == 'umap' and '110' in parameters['shortname']:
+        color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
+        color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
+        color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
+        color_mapping[7], color_mapping[3] = color_mapping[3], color_mapping[7]
+    elif method == 'nmf_cepstrum' and '110' in parameters['shortname']:
+        color_mapping[2], color_mapping[3] = color_mapping[3], color_mapping[2]
 
     print('Combining loading map')
-    combined_loadings = create_combined_loading_map(parameters, merged_factor_infos, full_width, full_height, colors, color_mapping, method)
+    combined_loadings = create_combined_loading_map(parameters, merged_factor_infos, full_width, full_height, colors, color_mapping, method, loading_rotation)
 
     print('Creating line plot')
     create_lineplot(parameters, result_directory, merged_factor_infos, combined_loadings, loading_rotation, full_height, method, colors, color_mapping)
     print('Creating components')
     create_average_factors(parameters, result_directory, merged_factor_infos, method)
-    print('Reconstructing')
-    create_reconstruction(parameters, result_directory, method, experimental, merged_factor_infos, full_width, full_height)
-    print('Creating crystallographic map')
-    create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height)
+    # print('Reconstructing')
+    # create_reconstruction(parameters, result_directory, method, experimental, merged_factor_infos, full_width, full_height)
+    print('Creating crystallographic map (if template matching)')
+    create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height, method)
+    if method == 'umap':
+        print('Creating UMAP embedding visualisation')
+        create_umap_projection(parameters, result_directory, merged_factor_infos, colors, color_mapping, full_width, full_height)
 
 
 def combine_loading_maps(parameters, result_directory, classification_method, scalebar_nm, rotation):
