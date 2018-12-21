@@ -42,26 +42,12 @@ from figure import material_color_palette
 
 
 
-def image_l2_norm(image_a, image_b):
-    a_max = image_a.max() or 1
-    b_max = image_b.max() or 1
-    image_a *= 1/a_max
-    image_b *= 1/b_max
-    return np.linalg.norm(image_a - image_b, ord='fro')
-
-
 def image_l1_norm(image_a, image_b):
     a_max = image_a.max() or 1
     b_max = image_b.max() or 1
     image_a_scaled = image_a * (1/a_max)
     image_b_scaled = image_b * (1/b_max)
     return np.linalg.norm(image_a_scaled - image_b_scaled, ord=1)
-
-
-def image_l2_norm_fft(image_a, image_b):
-    image_a = np.fft.fft2(image_a)
-    image_b = np.fft.fft2(image_b)
-    return image_l2_norm(image_a, image_b)
 
 
 def image_l1_norm_fft(image_a, image_b):
@@ -100,13 +86,6 @@ def classify_compare_l2_norm(parameters, factor, known_factors):
     return factor_index, None
 
 
-def classify_l2_norm_normal(parameters, factor, known_factors):
-    return classify_norm(parameters, factor, known_factors, image_l2_norm)
-
-
-def classify_l2_norm_fourier(parameters, factor, known_factors):
-    return classify_norm(parameters, factor, known_factors, image_l2_norm_fft)
-
 
 def classify_l2_norm_log(parameters, factor, known_factors):
     return classify_norm(parameters, factor, known_factors, image_l2_norm_log)
@@ -120,33 +99,6 @@ def classify_l1_norm_fourier(parameters, factor, known_factors):
     return classify_norm(parameters, factor, known_factors, image_l1_norm_fft)
 
 
-def classify_norm(parameters, factor, known_factors, norm_func):
-    threshold = parameters['classify_l2_norm_threshold']
-    if len(known_factors) > 0:
-        diffs = [norm_func(factor, known_factor) for known_factor in known_factors]
-        best_diff_index = np.argmin(diffs)
-        best_diff = diffs[best_diff_index]
-        if (best_diff < threshold):
-            factor_index = best_diff_index
-            # plt.figure()
-            # plt.suptitle(' '.join('{:.4f}'.format(d) for d in diffs))
-            # for i, (f, d) in enumerate(zip(known_factors, diffs)):
-                # plt.subplot(2, 4, i + 1)
-                # plt.imshow(f)
-            # plt.subplot(2, 4, 6)
-            # plt.imshow(factor)
-            # plt.show()
-            report_progress.write('    Matched phase {} (difference {})'.format(factor_index, best_diff))
-            # report_progress.write('      {}'.format(diffs))
-        else:
-            factor_index = len(known_factors)
-            known_factors.append(factor)
-            report_progress.write('    New phase {} (difference {})'.format(factor_index, best_diff))
-    else:
-        factor_index = len(known_factors)
-        known_factors.append(factor)
-
-    return factor_index, None
 
 
 def create_diffraction_library(parameters, pattern_size):
@@ -359,26 +311,30 @@ def calculate_error(parameters, experimental, reconstruction):
 
 
 def create_reconstruction(parameters, result_directory, method_name,
-        experimental, merged_factor_infos, full_width, full_height):
+        experimental, factor_infos, loading_infos, full_width, full_height):
     last_tile = None
     error = np.zeros((full_height, full_width))
-    for factor_index, factor_infos in merged_factor_infos.items():
-        for factor, factor_infos, loading, loading_info, factor_weight, tile, classify_extra in report_progress(factor_infos):
-            if last_tile is None or tile != last_tile:
-                # NOTE: This assumes that factors are presented sorted by tile
-                report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, full_width, full_height))
-                if last_tile is not None:
-                    slice_x = slice(last_tile[0], last_tile[1])
-                    slice_y = slice(last_tile[2], last_tile[3])
-                    tile
-                    error[slice_y, slice_x] = calculate_error(parameters, experimental.inav[slice_x, slice_y], reconstruction)
-                tile_width = tile[1] - tile[0]
-                tile_height = tile[3] - tile[2]
-                reconstruction = np.zeros((tile_height, tile_width, 144, 144))
-                last_tile = tile
-            reconstruction += np.outer(
-                loading.ravel(),
-                factor.ravel()).reshape(*loading.shape, *factor.shape)
+    for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
+        tile = (factor_info['x_start'], factor_info['x_stop'],
+                factor_info['y_start'], factor_info['y_stop'])
+        tile_width = tile[1] - tile[0]
+        tile_height = tile[3] - tile[2]
+        if last_tile is None or tile != last_tile:
+            report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, full_width, full_height))
+            if last_tile is not None:
+                slice_x = slice(last_tile[0], last_tile[1])
+                slice_y = slice(last_tile[2], last_tile[3])
+                # Done with a tile, calculate the error
+                error[slice_y, slice_x] = calculate_error(parameters, experimental.inav[slice_x, slice_y], reconstruction)
+            # Clear the reconstruction, ready for new tile
+            reconstruction = np.zeros((tile_height, tile_width, 144, 144))
+            last_tile = tile
+
+        factor = load_factorization_data(factor_info['filename'])
+        loading = load_factorization_data(loading_info['filename'])
+        reconstruction += np.outer(
+            loading.ravel(),
+            factor.ravel()).reshape(*loading.shape, *factor.shape)
 
     slice_x = slice(last_tile[0], last_tile[1])
     slice_y = slice(last_tile[2], last_tile[3])
@@ -391,6 +347,13 @@ def create_reconstruction(parameters, result_directory, method_name,
     print('Max error', error.max(), 'colorbar', error_max)
 
     shortname = parameters['shortname']
+    # TODO: Parameterize
+    if 'three' in shortname:
+        scalebar_nm = 20
+    elif '110' in shortname:
+        scalebar_nm = 100
+    else:
+        scalebar_nm = 500
     fig, ax = plt.subplots()
     error_image = ax.imshow(error, cmap='viridis')
     error_colors = 255*np.array(error_image.cmap(error_image.norm(error)))[:, :, 0:3]
@@ -399,45 +362,167 @@ def create_reconstruction(parameters, result_directory, method_name,
             TikzColorbar(error_min, error_max, None, 'viridis', '4cm'))
     save_figure(
             os.path.join(result_directory, 'reconstruction_error_{}_{}.tex'.format(shortname, method_name)),
-            TikzImage(error_colors.astype('uint8')))
+            TikzImage(error_colors.astype('uint8')),
+            TikzScalebar(scalebar_nm, parameters['nav_scale_x']*full_width, r'\SI{{{}}}{{\nm}}'.format(scalebar_nm)))
 
+
+def image_l2_norm(image_a, image_b):
+    """Compute L2 norm difference of two images.
+
+    Parameters
+    ----------
+    image_a, image_b : 2D numpy.ndarray
+        Image data.
+
+    Returns
+    -------
+    l2_norm : float
+        L2 norm of the difference between `image_a` and `image_b`.
+    """
+    a_max = image_a.max() or 1
+    b_max = image_b.max() or 1
+    image_a *= 1/a_max
+    image_b *= 1/b_max
+    return np.linalg.norm(image_a - image_b, ord='fro')
+
+
+def image_l2_norm_fft(image_a, image_b):
+    """Compute L2 norm difference of the Fourier transform of two images.
+
+    Parameters
+    ----------
+    image_a, image_b : 2D numpy.ndarray
+        Image data.
+
+    Returns
+    -------
+    l2_norm : float
+        L2 norm of the difference between Fourier(`image_a`)
+        and Fourier(`image_b`).
+    """
+    image_a = np.fft.fft2(image_a)
+    image_b = np.fft.fft2(image_b)
+    return image_l2_norm(image_a, image_b)
+
+
+def classify_l2_norm_normal(parameters, factor, known_factors):
+    """Classify `factor` by a factor index using L2 norm difference.
+    See classify_norm for description."""
+    return classify_norm(parameters['classify_l2_norm_threshold'], factor, known_factors, image_l2_norm)
+
+
+def classify_l2_norm_fourier(parameters, factor, known_factors):
+    """Classify `factor` by a factor index using L2 norm Fourier difference.
+    See classify_norm for description."""
+    return classify_norm(parameters['classify_l2_norm_threshold'], factor, known_factors, image_l2_norm_fft)
+
+
+def classify_norm(norm_threshold, factor, known_factors, norm_func):
+    """Classify `factor` by an index, either merging it with a similar,
+    known factor or adding it as a new, known factor and assigning a new index.
+
+    Parameters
+    ----------
+    norm_threshold : float
+        Threshold for separating new and known factors based on difference
+        calculated by `norm_func`.
+    factor : 2D numpy.ndarray
+        Factor to classify
+    known_factor : list
+        List of already known factors. May be updated
+    norm_func : function
+        Callable function taking two 2D numpy.ndarrays and returning the
+        difference between them. One of the `image_*` functions above.
+
+    Returns
+    -------
+    factor_index : int
+        Index of the `factor`, either matched or new.
+    classification_results
+        Any extra results returned from the classification method.
+    """
+    if len(known_factors) > 0:
+        # If we have seen any factors before, calculate the difference between
+        # them and the new factor.
+        diffs = [norm_func(factor, known_factor) for known_factor in known_factors]
+        # And find the best matching
+        best_diff_index = np.argmin(diffs)
+        best_diff = diffs[best_diff_index]
+        if (best_diff < norm_threshold):
+            # This factor matched a known factor, return its index
+            factor_index = best_diff_index
+            report_progress.write('    Matched phase {} (difference {})'.format(factor_index, best_diff))
+        else:
+            # No factor had a difference below the threshold, assign a new index
+            # and record the new factor as a known one.
+            factor_index = len(known_factors)
+            known_factors.append(factor)
+            report_progress.write('    New phase {} (difference {})'.format(factor_index, best_diff))
+    else:
+        # If no factors have been seen before, this must be a new one.
+        factor_index = len(known_factors)
+        known_factors.append(factor)
+
+    return factor_index, None
 
 def load_factorization_data(filename):
+    """Load a component signal or loading map from tiff or png, but
+    first trying to find the original numpy array file for better bit depth.
+    """
     numpy_filename = filename.replace('tiff', 'npy').replace('png', 'npy')
     if os.path.exists(numpy_filename):
+        # Numpy file exists, load it
         data = np.load(numpy_filename)
     else:
+        # Fall back to loading the image, normalized to [0, 1]
         data = np.asarray(Image.open(filename)).astype('float')
         data *= 1/255.0
     return data
 
 
-def merge_factors(factor_infos, loading_infos, classify, full_width, full_height):
+def merge_factors(factor_infos, loading_infos, classify):
+    """Merge factors and corresponding loading maps based on information
+    from the metadata stored during processing.
+
+    Parameters
+    ----------
+    factor_infors, loading_infos : dict
+        Dictionary containing the metadata stored during processing.
+    classify : function
+        Function for assigning an index to each factor.
+    """
     merged_factor_infos = defaultdict(list)
     last_tile = None
     known_factors = []
+    # Iterate all factor and loading infos, assumed to be sorted by which section
     for factor_info, loading_info in report_progress(zip(factor_infos, loading_infos), total=len(factor_infos)):
         tile = (factor_info['x_start'], factor_info['x_stop'],
                 factor_info['y_start'], factor_info['y_stop'])
+        # If we are starting on a new tile, report it
         if last_tile is None or tile != last_tile:
-            report_progress.write('Tile {}:{}  {}:{} (of {} {})'.format(*tile, full_width, full_height))
+            report_progress.write('Tile {}:{}  {}:{}'.format(*tile))
             last_tile = tile
 
+        # Load component factor and loading map data
         factor = load_factorization_data(factor_info['filename'])
         loading = load_factorization_data(loading_info['filename'])
 
+        # Classify the (normalised) factor
+        report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
         factor_max = factor.max() or 1
         factor_index, classify_extra = classify(parameters, factor.copy() * (1/factor_max), known_factors)
-        report_progress.write('    Factor index: {} ({})'.format(factor_index, os.path.basename(factor_info['filename'])))
 
+        # Measure the density of the loading map
         pixel_count = np.count_nonzero(loading[loading > 0.04])
 
+        # Append the factor and loading information to the list of tiles for this factor
         merged_factor_infos[factor_index].append((factor, factor_info, loading, loading_info, pixel_count, tile, classify_extra))
     return merged_factor_infos
 
 
 def create_average_factors(parameters, result_directory, merged_factor_infos, method_name):
     dp_rotation = 41  # TODO(simonhog): Move to parameters
+    sig_width = 144
     shortname = parameters['shortname']
     for factor_index, factor_infos in merged_factor_infos.items():
         factors = [info[0] for info in factor_infos]
@@ -456,7 +541,8 @@ def create_average_factors(parameters, result_directory, merged_factor_infos, me
             factor_colors = 255*np.array(factor_image.cmap(factor_image.norm(factor_average)))[:, :, 0:3]
         save_figure(
                 os.path.join(result_directory, 'factor_average_{}_{}_{}.tex'.format(shortname, method_name, factor_index)),
-                TikzImage(factor_colors.astype('uint8')))
+                TikzImage(factor_colors.astype('uint8')),
+                TikzScalebar(1, 0.032*sig_width, r'\SI{1}{\per\angstrom}'))
 
 
 def create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height, method_name):
@@ -475,8 +561,6 @@ def create_crystallographic_map(result_directory, merged_factor_infos, full_widt
 
 def create_umap_projection(parameters, result_directory, merged_factor_infos, colors, color_mapping, full_width, full_height):
     shortname = parameters['shortname']
-    embedding = np.zeros((full_height, full_width, 3))
-
 
     embedding_maps = {
         '110_full_umap_a': [
@@ -487,6 +571,8 @@ def create_umap_projection(parameters, result_directory, merged_factor_infos, co
         '112_c_full_umap': [],
         '112_d_full_umap': [],
         '112_e_full_umap': [],
+        '110_three_phase_no_split': [(slice(0, 50), slice(0, 50))],
+        '110_three_phase_no_split_umap_figure': [(slice(0, 50), slice(0, 50))],
     }
     for i in range(0, full_height, 150):
         embedding_maps['112_c_full_umap'].append((slice(0, 200), slice(i, min(i + 150, full_height))))
@@ -494,17 +580,19 @@ def create_umap_projection(parameters, result_directory, merged_factor_infos, co
         embedding_maps['112_e_full_umap'].append((slice(0, 210), slice(i, min(i + 150, full_height))))
 
     embedding_map = embedding_maps[shortname]
+    n_components = 2 if 'three_phase' in shortname else 3
+    embedding = np.zeros((full_height, full_width, n_components))
     for pos, embedding_filename in zip(embedding_map, glob.iglob(os.path.join(result_directory, 'embedding_*.npy'))):
         tile_width = pos[0].stop - pos[0].start
         tile_height = pos[1].stop - pos[1].start
-        embedding[pos[1], pos[0]] = np.load(embedding_filename).reshape(tile_height, tile_width, 3)
+        embedding[pos[1], pos[0]] = np.load(embedding_filename).reshape(tile_height, tile_width, n_components)
 
     if False:
         clusterer = hdbscan.HDBSCAN(
             min_samples=parameters['umap_cluster_min_samples'],
             # min_cluster_size=parameters['umap_cluster_size'],
             min_cluster_size=2000,
-        ).fit(embedding.reshape(full_height*full_width, 3))
+        ).fit(embedding.reshape(full_height*full_width, n_components))
 
         for i in range(np.max(clusterer.labels_)):
             print(i, np.count_nonzero(clusterer.labels_ == i))
@@ -525,7 +613,10 @@ def create_umap_projection(parameters, result_directory, merged_factor_infos, co
         cluster_member_colors = cluster_colors.reshape(full_height*full_width, 3)
 
     fig, ax_scatter = plt.subplots()
-    x, y = embedding.reshape(full_width*full_height, 3)[:, 1:3].T
+    if n_components == 3:
+        x, y = embedding.reshape(full_width*full_height, n_components)[:, 1:3].T
+    else:
+        x, y = embedding.T
     ax_scatter.scatter(x, y, s=15, c=cluster_member_colors, alpha=0.25)
     ax_scatter.tick_params(
         axis='both',
@@ -554,7 +645,7 @@ def process_method(parameters, result_directory, method, classify, factor_infos,
     full_width = experimental.data.shape[1]
     full_height = experimental.data.shape[0]
 
-    merged_factor_infos = merge_factors(factor_infos, loading_infos, classify, full_width, full_height)
+    merged_factor_infos = merge_factors(factor_infos, loading_infos, classify)
 
     colors = [
         ('Red', [1, 0, 0]),
@@ -564,16 +655,17 @@ def process_method(parameters, result_directory, method, classify, factor_infos,
         ('Magenta', [1, 0, 1]),
         ('Cyan', [0, 1, 1]),
     ]
-    if method == 'umap' or len(factor_infos) > 6:
+    shortname = parameters['shortname']
+    if method == 'umap' or '112' in shortname:
         colors = material_color_palette
     color_mapping = list(range(len(colors)))
     # TODO(simonhog): Parameterize
-    if method == 'umap' and '110' in parameters['shortname']:
+    if method == 'umap' and '110' in shortname:
         color_mapping[1], color_mapping[2] = color_mapping[2], color_mapping[1]
         color_mapping[1], color_mapping[6] = color_mapping[6], color_mapping[1]
         color_mapping[3], color_mapping[5] = color_mapping[5], color_mapping[3]
         color_mapping[7], color_mapping[3] = color_mapping[3], color_mapping[7]
-    elif method == 'nmf_cepstrum' and '110' in parameters['shortname']:
+    elif method == 'nmf_cepstrum' and '110' in shortname:
         color_mapping[2], color_mapping[3] = color_mapping[3], color_mapping[2]
 
     print('Combining loading map')
@@ -583,8 +675,8 @@ def process_method(parameters, result_directory, method, classify, factor_infos,
     create_lineplot(parameters, result_directory, merged_factor_infos, combined_loadings, loading_rotation, full_height, method, colors, color_mapping)
     print('Creating components')
     create_average_factors(parameters, result_directory, merged_factor_infos, method)
-    # print('Reconstructing')
-    # create_reconstruction(parameters, result_directory, method, experimental, merged_factor_infos, full_width, full_height)
+    print('Reconstructing')
+    create_reconstruction(parameters, result_directory, method, experimental, factor_infos, loading_infos, full_width, full_height)
     print('Creating crystallographic map (if template matching)')
     create_crystallographic_map(result_directory, merged_factor_infos, full_width, full_height, method)
     if method == 'umap':
