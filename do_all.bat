@@ -6,7 +6,7 @@ python combined_loading_map.py ..\..\Data\Runs\run_110_three_phase_no_split_2018
 
 REM Both, to get loading map and orientations, template match first to get loading map from l2norm
 python combined_loading_map.py ..\..\Data\Runs\run_110_full_nmf_20181211_21_18_30_538032 template_match
-python combined_loading_map.py ..\..\Data\Runs\run_110_full_nmf_20181211_21_18_30_538032 l2_norm_fourier 3.2
+python combined_loading_map.py ..\..\Data\Runs\run_110_full_nmf_20181211_21_18_30_538032 l2_norm_fourier 2.6
 python combined_loading_map.py ..\..\Data\Runs\run_110_full_umap_a_20181129_09_02_37_114197 template_match
 python combined_loading_map.py ..\..\Data\Runs\run_110_full_umap_a_20181129_09_02_37_114197 l2_norm_fourier 1.526
 
@@ -16,7 +16,9 @@ python combined_loading_map.py ..\..\Data\Runs\run_112_c_full_nmf_20181217_00_53
 python combined_loading_map.py ..\..\Data\Runs\run_112_d_full_nmf_20181217_11_48_44_542598 l2_norm 3 500 90
 python combined_loading_map.py ..\..\Data\Runs\run_112_e_full_nmf_20181217_23_35_19_106171 l2_norm 3 500 90
 
+python combined_loading_map.py ..\..\Data\Runs\run_112_c_full_nmf_cepstrum_20181218_17_20_30_787075 l2_norm 0.0 500 90
 python combined_loading_map.py ..\..\Data\Runs\run_112_d_full_nmf_cepstrum_20181217_11_49_34_600266 l2_norm 0.2 500 90
+python combined_loading_map.py ..\..\Data\Runs\run_112_e_full_nmf_cepstrum_20181217_23_35_19_106171 l2_norm 0.1 500 90
 
 python combined_loading_map.py ..\..\Data\Runs\run_112_c_full_umap_20181217_00_53_39_467258 l2_norm 0 500 90
 python combined_loading_map.py ..\..\Data\Runs\run_112_d_full_umap_20181217_11_49_02_191403 l2_norm 0 500 90

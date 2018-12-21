@@ -38,7 +38,9 @@ run_dir_code                   = parameters['run_dir_code']
 run_dir_full_112_c_nmf          = parameters['run_dir_full_112_c_nmf']
 run_dir_full_112_d_nmf          = parameters['run_dir_full_112_d_nmf']
 run_dir_full_112_e_nmf          = parameters['run_dir_full_112_e_nmf']
+run_dir_full_112_c_nmf_cepstrum = parameters['run_dir_full_112_c_nmf_cepstrum']
 run_dir_full_112_d_nmf_cepstrum = parameters['run_dir_full_112_d_nmf_cepstrum']
+run_dir_full_112_e_nmf_cepstrum = parameters['run_dir_full_112_e_nmf_cepstrum']
 run_dir_full_112_c_umap         = parameters['run_dir_full_112_c_umap']
 run_dir_full_112_d_umap         = parameters['run_dir_full_112_d_umap']
 run_dir_full_112_e_umap         = parameters['run_dir_full_112_e_umap']
@@ -113,6 +115,13 @@ def tiff_to_png(src, dest):
     src_file = Image.open(src)
     src_file.save(dest)
     process_log.append(('tiff_to_png', src, dest))
+
+
+def tiff_to_png_intenstity_scale(src, dest):
+    src_data = np.asarray(Image.open(src)).astype('float')
+    src_data *= 255.0/(src_data.max() or 1)
+    Image.fromarray(src_data.astype('uint8')).save(dest)
+    process_log.append(('tiff_to_png_intensity_scale', src, dest))
 
 
 def tiff_combine_rgb_to_png(src_r, src_g, src_b, dest):
@@ -286,10 +295,16 @@ tiff_combine_rgb_to_png(
 copy_tikz(
         os.path.join(data_path, run_dir_full_110_nmf, 'loading_map_110_full_nmf_nmf.tex'),
         os.path.join(gen_output_path, 'full_110_nmf_loading_map.tex'))
-for i in range(0, 4):
+for i in range(4):
     copy_tikz(
-            os.path.join(data_path, run_dir_full_110_nmf, 'factor_average_110_full_nmf_nmf_{}.tex'.format(i)),
-            os.path.join(gen_output_path, 'full_110_nmf_factor_{}.tex'.format(i)))
+        os.path.join(data_path, run_dir_full_110_nmf, 'factor_average_110_full_nmf_nmf_{}.tex'.format(i)),
+        os.path.join(gen_output_path, 'full_110_nmf_factor_{}.tex'.format(i)))
+tiff_to_png_intenstity_scale(
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_145-290_205-410_loadings_0.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_loading_map_0.png'))
+tiff_to_png_intenstity_scale(
+        os.path.join(data_path, run_dir_full_110_nmf, 'nmf_0-145_0-205_loadings_3.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_loading_map_1.png'))
 
 copy_tikz(
         os.path.join(data_path, run_dir_full_110_nmf, 'reconstruction_error_110_full_nmf_nmf.tex'),
@@ -298,9 +313,26 @@ copy_tikz(
         os.path.join(data_path, run_dir_full_110_nmf, 'reconstruction_error_110_full_nmf_colorbar.tex'),
         os.path.join(gen_output_path, 'full_110_reconstruction_error_colorbar_nmf.tex'))
 
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_nmf, 'phase_map_110_full_nmf_nmf.tex'),
+        os.path.join(gen_output_path, 'full_110_nmf_phase_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_nmf, 'reliability_orientation_map_110_full_nmf_nmf.tex'),
+        os.path.join(gen_output_path, 'full_110_nmf_reliability_orientation_map.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_nmf, 'reliability_phase_map_110_full_nmf_nmf.tex'),
+        os.path.join(gen_output_path, 'full_110_nmf_reliability_phase_map.tex'))
+for orientation_phase in ['xvec_zb', 'yvec_zb', 'zvec_zb', 'xvec_wz', 'yvec_wz', 'zvec_wz']:
+    copy(
+        os.path.join(data_path, run_dir_full_110_nmf, 'orientation_map_{}.png'.format(orientation_phase)),
+        os.path.join(gen_output_path, 'full_110_nmf_template_match_orientation_map_{}.png'.format(orientation_phase)))
+    copy(
+        os.path.join(data_path, run_dir_full_110_nmf, 'orientation_map_color_{}.png'.format(orientation_phase)),
+        os.path.join(gen_output_path, 'full_110_nmf_template_match_orientation_map_color_{}.png'.format(orientation_phase)))
+
 parameter_to_tex(
         os.path.join(data_path, run_dir_full_110_nmf, 'metadata.txt'),
-        '__elapsed_time_nmf', 'OneOneZeroNMFTime', '.2f')
+        '__elapsed_time_nmf', 'OneOneZeroNMFTime', '.2f', 1/3600)
 
 for tiff_name, png_name in [
     ('nmf_0-145_0-205_factors_{}.tiff'.format(i), 'full_110_nmf_many_phase_factor_{}.png'.format(i))
@@ -318,6 +350,12 @@ for i in range(0, 4):
     copy_tikz(
             os.path.join(data_path, run_dir_full_110_nmf_cepstrum, 'factor_average_110_full_nmf_cepstrum_nmf_cepstrum_{}.tex'.format(i)),
             os.path.join(gen_output_path, 'full_110_nmf_cepstrum_factor_{}.tex'.format(i)))
+tiff_to_png_intenstity_scale(
+        os.path.join(data_path, run_dir_full_110_nmf_cepstrum, 'nmf_cepstrum_145-290_205-410_loadings_1.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_cepstrum_loading_map_0.png'))
+tiff_to_png_intenstity_scale(
+        os.path.join(data_path, run_dir_full_110_nmf_cepstrum, 'nmf_cepstrum_0-145_0-205_loadings_2.tiff'),
+        os.path.join(gen_output_path, 'full_110_nmf_cepstrum_loading_map_1.png'))
 
 
 
@@ -339,13 +377,6 @@ copy_tikz(
 copy_tikz(
         os.path.join(data_path, run_dir_full_110_umap, 'reliability_phase_map_110_full_umap_a_umap.tex'),
         os.path.join(gen_output_path, 'full_110_umap_reliability_phase_map.tex'))
-for orientation_phase in ['xvec_zb', 'yvec_zb', 'zvec_zb', 'xvec_wz', 'yvec_wz', 'zvec_wz']:
-    copy(
-        os.path.join(data_path, run_dir_full_110_umap, 'orientation_map_{}.png'.format(orientation_phase)),
-        os.path.join(gen_output_path, 'full_110_umap_orientation_map_{}.png'.format(orientation_phase)))
-    copy(
-        os.path.join(data_path, run_dir_full_110_umap, 'orientation_map_color_{}.pdf'.format(orientation_phase)),
-        os.path.join(gen_output_path, 'full_110_umap_orientation_map_color_{}.pdf'.format(orientation_phase)))
 for i in range(12):
     copy_tikz(
         os.path.join(data_path, run_dir_full_110_umap, 'factor_average_110_full_umap_a_umap_{}.tex'.format(i)),
@@ -355,14 +386,14 @@ for orientation_phase in ['xvec_zb', 'yvec_zb', 'zvec_zb', 'xvec_wz', 'yvec_wz',
         os.path.join(data_path, run_dir_full_110_umap, 'orientation_map_{}.png'.format(orientation_phase)),
         os.path.join(gen_output_path, 'full_110_umap_template_match_orientation_map_{}.png'.format(orientation_phase)))
     copy(
-        os.path.join(data_path, run_dir_full_110_umap, 'orientation_map_color_{}.pdf'.format(orientation_phase)),
-        os.path.join(gen_output_path, 'full_110_umap_template_match_orientation_map_color_{}.pdf'.format(orientation_phase)))
-# copy_tikz(
-        # os.path.join(data_path, run_dir_full_110_nmf, 'reconstruction_error_110_full_umap_a_umap.tex'),
-        # os.path.join(gen_output_path, 'full_110_reconstruction_error_nmf.tex'))
-# copy_tikz(
-        # os.path.join(data_path, run_dir_full_110_nmf, 'reconstruction_error_110_full_umap_a_colorbar.tex'),
-        # os.path.join(gen_output_path, 'full_110_reconstruction_error_colorbar_nmf.tex'))
+        os.path.join(data_path, run_dir_full_110_umap, 'orientation_map_color_{}.png'.format(orientation_phase)),
+        os.path.join(gen_output_path, 'full_110_umap_template_match_orientation_map_color_{}.png'.format(orientation_phase)))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'reconstruction_error_110_full_umap_a_umap.tex'),
+        os.path.join(gen_output_path, 'full_110_reconstruction_error_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_110_umap, 'reconstruction_error_110_full_umap_a_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_110_reconstruction_error_colorbar_umap.tex'))
 parameter_to_tex(
         os.path.join(data_path, run_dir_full_110_umap, 'metadata.txt'),
         '__elapsed_time_umap', 'OneOneZeroUMAPTime', '.1f', 1/3600)
@@ -385,8 +416,8 @@ for orientation_phase in ['xvec_zb', 'yvec_zb', 'zvec_zb', 'xvec_wz', 'yvec_wz',
         os.path.join(data_path, run_dir_full_110_template, 'orientation_map_{}.png'.format(orientation_phase)),
         os.path.join(gen_output_path, 'full_110_template_match_orientation_map_{}.png'.format(orientation_phase)))
     copy(
-        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_color_{}.pdf'.format(orientation_phase)),
-        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_color_{}.pdf'.format(orientation_phase)))
+        os.path.join(data_path, run_dir_full_110_template, 'orientation_map_color_{}.png'.format(orientation_phase)),
+        os.path.join(gen_output_path, 'full_110_template_match_orientation_map_color_{}.png'.format(orientation_phase)))
 
 parameter_to_tex(
         os.path.join(data_path, run_dir_full_110_template, 'metadata.txt'),
@@ -420,12 +451,45 @@ for i in [1, 19, 3, 7, 8, 14]:
         os.path.join(gen_output_path, 'full_112_e_nmf_factor_{}.tex'.format(i)))
 
 copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_nmf, 'reconstruction_error_112_c_full_nmf_nmf_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_c_reconstruction_error_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_nmf, 'reconstruction_error_112_c_full_nmf_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_c_reconstruction_error_colorbar_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_d_nmf, 'reconstruction_error_112_d_full_nmf_nmf_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_d_reconstruction_error_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_d_nmf, 'reconstruction_error_112_d_full_nmf_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_d_reconstruction_error_colorbar_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_nmf, 'reconstruction_error_112_e_full_nmf_nmf_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_e_reconstruction_error_nmf.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_nmf, 'reconstruction_error_112_e_full_nmf_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_e_reconstruction_error_colorbar_nmf.tex'))
+
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_nmf_cepstrum, 'loading_map_112_c_full_nmf_cepstrum_nmf_cepstrum.tex'),
+        os.path.join(gen_output_path, 'full_112_c_nmf_cepstrum_loading_map.tex'))
+for i in range(0):
+    copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_nmf_cepstrum, 'factor_average_112_c_full_nmf_cepstrum_nmf_cepstrum_{}.tex'.format(i)),
+        os.path.join(gen_output_path, 'full_112_c_nmf_cepstrum_factor_{}.tex'.format(i)))
+copy_tikz(
         os.path.join(data_path, run_dir_full_112_d_nmf_cepstrum, 'loading_map_112_d_full_nmf_cepstrum_nmf_cepstrum.tex'),
         os.path.join(gen_output_path, 'full_112_d_nmf_cepstrum_loading_map.tex'))
-for i in range(16):
+for i in range(0):
     copy_tikz(
         os.path.join(data_path, run_dir_full_112_d_nmf_cepstrum, 'factor_average_112_d_full_nmf_cepstrum_nmf_cepstrum_{}.tex'.format(i)),
         os.path.join(gen_output_path, 'full_112_d_nmf_cepstrum_factor_{}.tex'.format(i)))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_nmf_cepstrum, 'loading_map_112_e_full_nmf_cepstrum_nmf_cepstrum.tex'),
+        os.path.join(gen_output_path, 'full_112_e_nmf_cepstrum_loading_map.tex'))
+for i in range(0):
+    copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_nmf_cepstrum, 'factor_average_112_e_full_nmf_cepstrum_nmf_cepstrum_{}.tex'.format(i)),
+        os.path.join(gen_output_path, 'full_112_e_nmf_cepstrum_factor_{}.tex'.format(i)))
 
 
 
@@ -453,6 +517,26 @@ for i in [1, 91, 12, 30, 54, 60]:
     copy_tikz(
         os.path.join(data_path, run_dir_full_112_e_umap, 'factor_average_112_e_full_umap_umap_{}.tex'.format(i)),
         os.path.join(gen_output_path, 'full_112_e_umap_factor_{}.tex'.format(i)))
+
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_umap, 'reconstruction_error_112_c_full_umap_umap_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_c_reconstruction_error_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_c_umap, 'reconstruction_error_112_c_full_umap_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_c_reconstruction_error_colorbar_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_d_umap, 'reconstruction_error_112_d_full_umap_umap_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_d_reconstruction_error_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_d_umap, 'reconstruction_error_112_d_full_umap_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_d_reconstruction_error_colorbar_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_umap, 'reconstruction_error_112_e_full_umap_umap_rot.tex'),
+        os.path.join(gen_output_path, 'full_112_e_reconstruction_error_umap.tex'))
+copy_tikz(
+        os.path.join(data_path, run_dir_full_112_e_umap, 'reconstruction_error_112_e_full_umap_colorbar.tex'),
+        os.path.join(gen_output_path, 'full_112_e_reconstruction_error_colorbar_umap.tex'))
+
 
 
 
@@ -542,13 +626,22 @@ for pattern in ['zb_110', 'zb_112', 'wz_1120', 'wz_1010']:
 #
 for filename in [
         'pyxem_fork/pyxem/utils/sim_utils.py',
+        'compare/factorize.py',
         'compare/methods/nmf.py',
         'compare/methods/umap.py',
         'compare/methods/template_match.py',
+        'compare/utils/preprocess.py',
+        'compare/runs/run_110_three_phases_no_split_factorization.txt',
         'compare/runs/run_110_full_base.txt',
+        'compare/runs/run_112_c_full_base.txt',
         'compare/runs/run_110_full_nmf.txt',
+        'compare/runs/run_110_full_nmf_cepstrum.txt',
+        'compare/runs/run_112_c_full_nmf.txt',
+        'compare/runs/run_112_c_full_nmf_cepstrum.txt',
         'compare/runs/run_110_full_umap_a.txt',
+        'compare/runs/run_112_c_full_umap.txt',
         'compare/runs/run_110_full_template_match.txt',
+        'figures/combined_loading_map.py',
         ]:
     copy(
         os.path.join(run_dir_code, filename),

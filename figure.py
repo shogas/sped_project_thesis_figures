@@ -175,6 +175,7 @@ class TikzRectangle(TikzElement):
 
 class TikzScalebar(TikzElement):
     def __init__(self, scalebar_width_physical, image_width_physical, text):
+        print('TikzScalebar', scalebar_width_physical, image_width_physical)
         self.scalebar_width_physical = scalebar_width_physical
         self.image_width_physical = image_width_physical
         self.text = text
@@ -182,8 +183,8 @@ class TikzScalebar(TikzElement):
 
     def write(self, figure_filename, figure_elements):
         return r"""\begin{{scope}}[x={{(img.south east)}},y={{(img.north west)}}]
-    \fill [fill=black, fill opacity=0.5] (0.2em,0.2em) rectangle ({sb_width}/{im_width}+0.05,1.8em);
-    \draw [white, line width=0.2em] (0.4em,0.6em) -- node[above,inner sep=0.1em, font=\footnotesize] {{{text}}} ({sb_width}/{im_width}+0.04, 0.6em);
+    \fill [fill=black, fill opacity=0.5] (0.2em, 0.2em) rectangle ++ ($ ({sb_width}/{im_width}, 0) + (0.2em, 1.6em) $);
+    \draw [white, line width=0.2em] (0.4em,0.6em) -- node[above,inner sep=0.1em, font=\footnotesize] {{{text}}} ++ ({sb_width}/{im_width}, 0);
 \end{{scope}}
 """.format(text=self.text, sb_width=self.scalebar_width_physical, im_width=self.image_width_physical)
 
